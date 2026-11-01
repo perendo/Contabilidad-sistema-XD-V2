@@ -36,3 +36,4 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Persistencia: PostgreSQL por entorno (`DATABASE_URL` / `TEST_DATABASE_URL`); migraciones con Alembic (URL desde settings).
 - Tests: BD de test con `drop_all`/`create_all` por test y seed dedicado (`test@example.com` / `testpass123`).
 - Stack backend: FastAPI + SQLAlchemy 2.0 + psycopg 3; frontend Next.js pendiente.
+- Asientos: tienen estado (draft/accepted/annulled); solo los borradores son editables/anulables.
