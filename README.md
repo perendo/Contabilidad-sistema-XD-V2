@@ -93,4 +93,4 @@ Historias/ (local, no versionado)
 
 ## Licencia
 
-Uso interno / privado.
+Este proyecto se distribuye bajo la licencia **GNU General Public License v3.0** (GPL-3.0). Consulta el archivo [LICENSE](LICENSE) para más detalles.
