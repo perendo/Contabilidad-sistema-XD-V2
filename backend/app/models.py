@@ -51,6 +51,21 @@ class JournalEntry(Base):
     )
 
 
+class ThirdParty(Base):
+    __tablename__ = "third_parties"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), unique=True)
+    name: Mapped[str] = mapped_column(String(255))
+    tax_id: Mapped[str] = mapped_column(String(50))
+    type: Mapped[str] = mapped_column(String(50))
+    address: Mapped[str] = mapped_column(String(500), default="")
+    phone: Mapped[str] = mapped_column(String(50), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+
+    account: Mapped["Account"] = relationship("Account")
+
+
 class JournalLine(Base):
     __tablename__ = "journal_lines"
 

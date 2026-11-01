@@ -23,7 +23,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 12. [ ] Como administrador, quiero ver la cuenta de pérdidas y ganancias y los extractos de cuenta por rango de fechas, para evaluar el rendimiento financiero. Requiere: #1, #2
 13. [ ] Como administrador, quiero exportar los informes a PDF, CSV o Excel, para compartirlos externamente. Requiere: #11, #12
 14. [ ] Como administrador, quiero seleccionar el ejercicio contable al entrar al sistema, para poder trabajar con dos ejercicios a la vez durante el cierre de enero. Requiere: #1
-15. [ ] Como administrador, quiero registrar clientes y proveedores con su NIF/CIF y vincularlos a subcuentas, para generar modelos fiscales (347, IVA, IRPF) con el tercero identificado. Requiere: #1
+15. [x] Como administrador, quiero registrar clientes y proveedores con su NIF/CIF y vincularlos a subcuentas, para generar modelos fiscales (347, IVA, IRPF) con el tercero identificado. Requiere: #1
 16. [ ] Como administrador, quiero adjuntar, listar y descargar documentos en un asiento del libro diario, para respaldar la operación y facilitar auditorías. Requiere: #2
 17. [ ] Como administrador, quiero eliminar documentos adjuntos de un asiento, para corregir errores de carga. Requiere: #16
 18. [ ] Como administrador, quiero registrar asientos en borrador pendientes de validación, para poder introducir movimientos bancarios importados y revisarlos antes de aceptarlos. Requiere: #2
@@ -37,3 +37,4 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Tests: BD de test con `drop_all`/`create_all` por test y seed dedicado (`test@example.com` / `testpass123`).
 - Stack backend: FastAPI + SQLAlchemy 2.0 + psycopg 3; frontend Next.js pendiente.
 - Asientos: tienen estado (draft/accepted/annulled); solo los borradores son editables/anulables.
+- Terceros: tabla propia vinculada por account_id (único) a una subcuenta del plan.
