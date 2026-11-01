@@ -96,9 +96,12 @@ export default function HomePage() {
             )}
           </Paper>
         )}
-        <Box sx={{ mt: 3 }}>
+        <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
           <Button variant="contained" href="/accounts">
             Plan de cuentas
+          </Button>
+          <Button variant="contained" href="/journal">
+            Libro diario
           </Button>
         </Box>
       </Container>

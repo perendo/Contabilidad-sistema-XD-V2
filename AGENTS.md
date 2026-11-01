@@ -30,6 +30,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 19. [ ] Como administrador, quiero aceptar un asiento borrador solo si está cuadrado y revisado, para garantizar la corrección contable. Requiere: #18
 20. [ ] Como administrador, quiero corregir asientos aceptados mediante un apunte de corrección, para no alterar el histórico. Requiere: #19
 21. [ ] Como administrador, quiero que los asientos aceptados no se puedan borrar, para preservar la trazabilidad. Requiere: #19
+22. [ ] Como administrador, quiero importar facturas recibidas desde documento (PDF/XML) y extraer automáticamente los datos del proveedor para generar el asiento contable, para agilizar el registro de compras/gastos. Requiere: #5, #15, #16
 
 ## Decisiones técnicas (MVP)
 - Auth: JWT bearer (python-jose) con usuario seed en tabla `users`; credenciales del seed vía `.env` (`SEED_EMAIL`, `SEED_PASSWORD`) y script `seed.py`.
