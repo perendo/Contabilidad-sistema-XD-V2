@@ -11,7 +11,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 
 1. [x] Como administrador, quiero iniciar sesión con mi email y contraseña y configurar los datos básicos de mi empresa y el plan de cuentas, para poder empezar a usar el sistema.
 2. [x] Como administrador, quiero crear asientos contables equilibrados con múltiples líneas, para registrar transacciones económicas siguiendo la partida doble.
-3. [ ] Como administrador, quiero editar o anular asientos no consolidados, para corregir errores. Requiere: #2
+3. [x] Como administrador, quiero editar o anular asientos no consolidados, para corregir errores. Requiere: #2
 4. [ ] Como administrador, quiero registrar facturas emitidas (ventas) con IVA, para que el sistema genere automáticamente el asiento contable.
 5. [ ] Como administrador, quiero registrar facturas recibidas (compras/gastos) con IVA, para que el sistema genere automáticamente el asiento contable.
 6. [ ] Como administrador, quiero marcar facturas como pendientes, pagadas o cobradas y generar asientos de tesorería, para controlar el flujo de caja. Requiere: #4, #5

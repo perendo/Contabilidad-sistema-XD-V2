@@ -142,3 +142,179 @@ def test_list_entries_filters_by_date_range(client):
     assert filtered.status_code == 200
     dates = [e["date"] for e in filtered.json()]
     assert dates == ["2026-01-20"]
+
+
+def test_update_draft_entry_persists_changes(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Borrador original",
+            "status": "draft",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 100, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 100},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+
+    updated = client.put(
+        f"/journal-entries/{entry_id}",
+        json={
+            "date": "2026-01-16",
+            "description": "Borrador editado",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D2", "debit": 50, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H2", "debit": 0, "credit": 50},
+            ],
+        },
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    data = updated.json()
+    assert data["date"] == "2026-01-16"
+    assert data["description"] == "Borrador editado"
+    assert data["status"] == "draft"
+    assert len(data["lines"]) == 2
+    assert data["lines"][0]["debit"] == 50
+
+
+def test_annul_draft_entry_keeps_it_in_journal(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Borrador a anular",
+            "status": "draft",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+
+    annulled = client.post(f"/journal-entries/{entry_id}/annul", headers=headers)
+    assert annulled.status_code == 200
+    assert annulled.json()["status"] == "annulled"
+
+    listing = client.get("/journal-entries", headers=headers)
+    assert listing.status_code == 200
+    ids = [e["id"] for e in listing.json()]
+    assert entry_id in ids
+    match = [e for e in listing.json() if e["id"] == entry_id][0]
+    assert match["status"] == "annulled"
+
+
+def test_update_non_draft_entry_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    # aceptado por defecto
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Aceptado",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+
+    updated = client.put(
+        f"/journal-entries/{entry_id}",
+        json={
+            "date": "2026-01-16",
+            "description": "Intento edición",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 5, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 5},
+            ],
+        },
+        headers=headers,
+    )
+    assert updated.status_code == 400
+
+
+def test_annul_non_draft_entry_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    line_payload = [
+        {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+        {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+    ]
+
+    # aceptado
+    accepted = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Aceptado", "lines": line_payload},
+        headers=headers,
+    ).json()
+    assert client.post(f"/journal-entries/{accepted['id']}/annul", headers=headers).status_code == 400
+
+    # ya anulado
+    draft = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Borrador", "status": "draft", "lines": line_payload},
+        headers=headers,
+    ).json()
+    client.post(f"/journal-entries/{draft['id']}/annul", headers=headers)
+    assert client.post(f"/journal-entries/{draft['id']}/annul", headers=headers).status_code == 400
