@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import Date, ForeignKey, Numeric, String
+from sqlalchemy import Date, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -64,6 +64,26 @@ class ThirdParty(Base):
     email: Mapped[str] = mapped_column(String(255), default="")
 
     account: Mapped["Account"] = relationship("Account")
+
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+    __table_args__ = (UniqueConstraint("year", "number", name="uq_invoices_year_number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    year: Mapped[int] = mapped_column()
+    number: Mapped[int] = mapped_column()
+    date: Mapped[date] = mapped_column(Date)
+    third_party_id: Mapped[int] = mapped_column(ForeignKey("third_parties.id"))
+    description: Mapped[str] = mapped_column(String(500), default="")
+    base_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    vat_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
+
+    third_party: Mapped["ThirdParty"] = relationship("ThirdParty")
+    entry: Mapped["JournalEntry | None"] = relationship("JournalEntry")
 
 
 class JournalLine(Base):

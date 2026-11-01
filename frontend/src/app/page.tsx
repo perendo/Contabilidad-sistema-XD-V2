@@ -103,6 +103,9 @@ export default function HomePage() {
           <Button variant="contained" href="/journal">
             Libro diario
           </Button>
+          <Button variant="contained" href="/invoices">
+            Facturas emitidas
+          </Button>
         </Box>
       </Container>
     </>

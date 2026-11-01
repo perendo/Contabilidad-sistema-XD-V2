@@ -12,7 +12,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 1. [x] Como administrador, quiero iniciar sesión con mi email y contraseña y configurar los datos básicos de mi empresa y el plan de cuentas, para poder empezar a usar el sistema.
 2. [x] Como administrador, quiero crear asientos contables equilibrados con múltiples líneas, para registrar transacciones económicas siguiendo la partida doble.
 3. [x] Como administrador, quiero editar o anular asientos no consolidados, para corregir errores. Requiere: #2
-4. [ ] Como administrador, quiero registrar facturas emitidas (ventas) con IVA, para que el sistema genere automáticamente el asiento contable.
+4. [x] Como administrador, quiero registrar facturas emitidas (ventas) con IVA, para que el sistema genere automáticamente el asiento contable.
 5. [ ] Como administrador, quiero registrar facturas recibidas (compras/gastos) con IVA, para que el sistema genere automáticamente el asiento contable.
 6. [ ] Como administrador, quiero marcar facturas como pendientes, pagadas o cobradas y generar asientos de tesorería, para controlar el flujo de caja. Requiere: #4, #5
 7. [ ] Como administrador, quiero liquidar el IVA de un periodo (devengado vs. deducible) con saldos a compensar, para cumplir con las obligaciones fiscales. Requiere: #4, #5
@@ -39,3 +39,4 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Stack backend: FastAPI + SQLAlchemy 2.0 + psycopg 3; frontend Next.js pendiente.
 - Asientos: tienen estado (draft/accepted/annulled); solo los borradores son editables/anulables.
 - Terceros: tabla propia vinculada por account_id (único) a una subcuenta del plan.
+- Facturas emitidas: generan un asiento aceptado en la misma transacción; cliente obligatorio de tipo `Cliente` (se adeuda su subcuenta), ventas fijas en `7000` e IVA repercutido en `4770`, tipos de IVA 21/10/4/0 y numeración correlativa por ejercicio. No hacer `alembic downgrade` por debajo de `d92b6a4f7e58`: borraría la tabla de facturas y dejaría huérfanos sus asientos.

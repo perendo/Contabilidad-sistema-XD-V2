@@ -1,0 +1,148 @@
+from datetime import date as DateType
+from decimal import Decimal, ROUND_HALF_UP
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from .auth import get_current_user
+from .database import get_db
+from .journal_entries import JournalLineIn, add_accepted_entry
+from .models import Account, Invoice, ThirdParty, User
+
+router = APIRouter(tags=["invoices"])
+
+ALLOWED_VAT_RATES = {Decimal("21"), Decimal("10"), Decimal("4"), Decimal("0")}
+CENT = Decimal("0.01")
+
+
+class InvoiceIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    date: DateType = Field(validation_alias=AliasChoices("date", "fecha"))
+    third_party_id: int = Field(
+        validation_alias=AliasChoices("third_party_id", "client_id", "cliente_id", "tercero_id")
+    )
+    description: str = Field(
+        default="",
+        max_length=500,
+        validation_alias=AliasChoices("description", "concept", "concepto"),
+    )
+    base_amount: Decimal = Field(
+        max_digits=12,
+        decimal_places=2,
+        validation_alias=AliasChoices("base_amount", "base", "base_imponible"),
+    )
+    vat_rate: Decimal = Field(validation_alias=AliasChoices("vat_rate", "iva", "tipo_iva"))
+
+
+class InvoiceOut(BaseModel):
+    id: int
+    year: int
+    number: int
+    date: DateType
+    third_party_id: int
+    description: str
+    base_amount: float
+    vat_rate: float
+    vat_amount: float
+    total: float
+    entry_id: int | None
+    model_config = ConfigDict(from_attributes=True)
+
+
+@router.post("/invoices", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
+def create_invoice(
+    body: InvoiceIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Invoice:
+    third_party = db.query(ThirdParty).filter(ThirdParty.id == body.third_party_id).first()
+    if third_party is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tercero no existe")
+    if third_party.type.strip().lower() != "cliente":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="El tercero no es un cliente"
+        )
+    if body.base_amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="La base imponible debe ser positiva"
+        )
+    if body.vat_rate not in ALLOWED_VAT_RATES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no válido"
+        )
+    sales_account = db.query(Account).filter(Account.code == "7000").first()
+    vat_account = db.query(Account).filter(Account.code == "4770").first()
+    if sales_account is None or vat_account is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cuentas por defecto no encontradas",
+        )
+
+    vat_amount = (body.base_amount * body.vat_rate / 100).quantize(CENT, rounding=ROUND_HALF_UP)
+    year = body.date.year
+    # Serializa la asignación del número por ejercicio para evitar correlativos duplicados.
+    db.execute(text("SELECT pg_advisory_xact_lock(:year)"), {"year": year})
+    last_number = (
+        db.query(func.max(Invoice.number)).filter(Invoice.year == year).scalar()
+    )
+    number = (last_number or 0) + 1
+    description = f"Factura {year}/{number:04d} - {third_party.name}"
+    total = body.base_amount + vat_amount
+
+    entry = add_accepted_entry(
+        db,
+        entry_date=body.date,
+        description=description,
+        lines=[
+            JournalLineIn(
+                account_id=third_party.account_id,
+                description=body.description,
+                debit=total,
+            ),
+            JournalLineIn(
+                account_id=sales_account.id,
+                description=body.description,
+                credit=body.base_amount,
+            ),
+            JournalLineIn(
+                account_id=vat_account.id,
+                description=body.description,
+                credit=vat_amount,
+            ),
+        ],
+    )
+
+    invoice = Invoice(
+        year=year,
+        number=number,
+        date=body.date,
+        third_party_id=third_party.id,
+        description=body.description,
+        base_amount=body.base_amount,
+        vat_rate=body.vat_rate,
+        vat_amount=vat_amount,
+        total=total,
+        entry_id=entry.id,
+    )
+    db.add(invoice)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se pudo asignar el número de factura; vuelve a intentarlo",
+        )
+    db.refresh(invoice)
+    return invoice
+
+
+@router.get("/invoices", response_model=list[InvoiceOut])
+def list_invoices(
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Invoice]:
+    return db.query(Invoice).order_by(Invoice.year, Invoice.number).all()

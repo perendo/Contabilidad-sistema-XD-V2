@@ -80,6 +80,7 @@ Los tests usan `TEST_DATABASE_URL` y recrean el esquema en cada ejecución.
 - Autenticación por email/contraseña y configuración de empresa.
 - Plan de cuentas jerárquico con búsqueda.
 - Libro diario: creación de asientos equilibrados con múltiples líneas y consulta con filtro por fechas.
+- Facturas emitidas con IVA (21/10/4/0), numeración correlativa por ejercicio y asiento contable generado automáticamente.
 - Seed automático del Plan General Contable al configurar la empresa.
 
 ## Estructura

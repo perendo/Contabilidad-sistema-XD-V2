@@ -67,6 +67,33 @@ def _validate(body: JournalEntryIn, db: Session) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El asiento no cuadra")
 
 
+def add_accepted_entry(
+    db: Session,
+    *,
+    entry_date: DateType,
+    description: str,
+    lines: list[JournalLineIn],
+) -> JournalEntry:
+    """Valida y añade un asiento aceptado a la sesión, sin confirmar la transacción."""
+    _validate(
+        JournalEntryIn(date=entry_date, description=description, lines=lines), db
+    )
+    entry = JournalEntry(date=entry_date, description=description, status="accepted")
+    db.add(entry)
+    db.flush()
+    for line in lines:
+        db.add(
+            JournalLine(
+                entry_id=entry.id,
+                account_id=line.account_id,
+                description=line.description,
+                debit=line.debit,
+                credit=line.credit,
+            )
+        )
+    return entry
+
+
 @router.post("/journal-entries", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
 @router.post("/entries", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
 @router.post("/asientos", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
