@@ -1,0 +1,418 @@
+[
+  {
+    "codigo": "1",
+    "nombre": "Financiación Básica",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "patrimonio_neto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "10",
+    "nombre": "Capital",
+    "nivel": 2,
+    "codigo_padre": "1",
+    "tipo": "patrimonio_neto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "100",
+    "nombre": "Capital social",
+    "nivel": 3,
+    "codigo_padre": "10",
+    "tipo": "patrimonio_neto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "1000",
+    "nombre": "Capital social ordinario",
+    "nivel": 4,
+    "codigo_padre": "100",
+    "tipo": "patrimonio_neto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "17",
+    "nombre": "Deudas a largo plazo con características especiales",
+    "nivel": 2,
+    "codigo_padre": "1",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "170",
+    "nombre": "Deudas a largo plazo con entidades de crédito",
+    "nivel": 3,
+    "codigo_padre": "17",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "1700",
+    "nombre": "Préstamos a largo plazo de entidades de crédito",
+    "nivel": 4,
+    "codigo_padre": "170",
+    "tipo": "pasivo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "2",
+    "nombre": "Inmovilizado No Financiero",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "21",
+    "nombre": "Inmovilizaciones materiales",
+    "nivel": 2,
+    "codigo_padre": "2",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "217",
+    "nombre": "Equipos para procesos de información",
+    "nivel": 3,
+    "codigo_padre": "21",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "2170",
+    "nombre": "Equipos informáticos y ordenadores",
+    "nivel": 4,
+    "codigo_padre": "217",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "20",
+    "nombre": "Inmovilizaciones intangibles",
+    "nivel": 2,
+    "codigo_padre": "2",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "206",
+    "nombre": "Aplicaciones informáticas",
+    "nivel": 3,
+    "codigo_padre": "20",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "2060",
+    "nombre": "Software y licencias informáticas",
+    "nivel": 4,
+    "codigo_padre": "206",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "3",
+    "nombre": "Existencias",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "30",
+    "nombre": "Commerciales",
+    "nivel": 2,
+    "codigo_padre": "3",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "300",
+    "nombre": "Mercaderías A",
+    "nivel": 3,
+    "codigo_padre": "30",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "3000",
+    "nombre": "Mercaderías almacén central",
+    "nivel": 4,
+    "codigo_padre": "300",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "4",
+    "nombre": "Acreedores y Deudores por Operaciones Comerciales",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "40",
+    "nombre": "Proveedores",
+    "nivel": 2,
+    "codigo_padre": "4",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "400",
+    "nombre": "Proveedores (euros)",
+    "nivel": 3,
+    "codigo_padre": "40",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "4000",
+    "nombre": "Proveedores habituales",
+    "nivel": 4,
+    "codigo_padre": "400",
+    "tipo": "pasivo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "43",
+    "nombre": "Clientes",
+    "nivel": 2,
+    "codigo_padre": "4",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "430",
+    "nombre": "Clientes (euros)",
+    "nivel": 3,
+    "codigo_padre": "43",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "4300",
+    "nombre": "Clientes generales",
+    "nivel": 4,
+    "codigo_padre": "430",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "47",
+    "nombre": "Administraciones Públicas",
+    "nivel": 2,
+    "codigo_padre": "4",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "472",
+    "nombre": "Hacienda Pública, IVA soportado",
+    "nivel": 3,
+    "codigo_padre": "47",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "4720",
+    "nombre": "Hacienda Pública, IVA soportado 21%",
+    "nivel": 4,
+    "codigo_padre": "472",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "477",
+    "nombre": "Hacienda Pública, IVA repercutido",
+    "nivel": 3,
+    "codigo_padre": "47",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "4770",
+    "nombre": "Hacienda Pública, IVA repercutido 21%",
+    "nivel": 4,
+    "codigo_padre": "477",
+    "tipo": "pasivo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "5",
+    "nombre": "Cuentas Financieras",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "57",
+    "nombre": "Tesorería",
+    "nivel": 2,
+    "codigo_padre": "5",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "572",
+    "nombre": "Bancos e instituciones de crédito c/c vista euros",
+    "nivel": 3,
+    "codigo_padre": "57",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "5720",
+    "nombre": "Banco principal c/c",
+    "nivel": 4,
+    "codigo_padre": "572",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "570",
+    "nombre": "Caja, euros",
+    "nivel": 3,
+    "codigo_padre": "57",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "5700",
+    "nombre": "Caja operativa central",
+    "nivel": 4,
+    "codigo_padre": "570",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "6",
+    "nombre": "Compras y Gastos",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "60",
+    "nombre": "Compras",
+    "nivel": 2,
+    "codigo_padre": "6",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "600",
+    "nombre": "Compras de mercaderías",
+    "nivel": 3,
+    "codigo_padre": "60",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "6000",
+    "nombre": "Compras de mercaderías generales",
+    "nivel": 4,
+    "codigo_padre": "600",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "62",
+    "nombre": "Servicios exteriores",
+    "nivel": 2,
+    "codigo_padre": "6",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "628",
+    "nombre": "Suministros",
+    "nivel": 3,
+    "codigo_padre": "62",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "6280",
+    "nombre": "Suministro eléctrico y energía",
+    "nivel": 4,
+    "codigo_padre": "628",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "64",
+    "nombre": "Gastos de personal",
+    "nivel": 2,
+    "codigo_padre": "6",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "640",
+    "nombre": "Sueldos y salarios",
+    "nivel": 3,
+    "codigo_padre": "64",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "6400",
+    "nombre": "Sueldos y salarios plantilla fija",
+    "nivel": 4,
+    "codigo_padre": "640",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "7",
+    "nombre": "Ventas e Ingresos",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "70",
+    "nombre": "Ventas de mercaderías, de producción propia, de servicios, etc.",
+    "nivel": 2,
+    "codigo_padre": "7",
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "700",
+    "nombre": "Ventas de mercaderías",
+    "nivel": 3,
+    "codigo_padre": "70",
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "7000",
+    "nombre": "Ventas de mercaderías nacionales",
+    "nivel": 4,
+    "codigo_padre": "700",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "705",
+    "nombre": "Prestaciones de servicios",
+    "nivel": 3,
+    "codigo_padre": "70",
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "7050",
+    "nombre": "Prestaciones de servicios de desarrollo / consultoría",
+    "nivel": 4,
+    "codigo_padre": "705",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  }
+]

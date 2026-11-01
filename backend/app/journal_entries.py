@@ -1,0 +1,110 @@
+from datetime import date as DateType
+from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices
+from sqlalchemy.orm import Session
+
+from .auth import get_current_user
+from .database import get_db
+from .models import Account, JournalEntry, JournalLine, User
+
+router = APIRouter(tags=["journal-entries"])
+
+
+class JournalLineIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    account_id: int = Field(validation_alias=AliasChoices("account_id", "accountId", "cuenta_id"))
+    description: str = Field(default="", validation_alias=AliasChoices("description", "concept", "concepto"))
+    debit: Decimal = Field(default=Decimal("0"), validation_alias=AliasChoices("debit", "debe"))
+    credit: Decimal = Field(default=Decimal("0"), validation_alias=AliasChoices("credit", "haber"))
+
+
+class JournalEntryIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    date: DateType = Field(validation_alias=AliasChoices("date", "fecha"))
+    description: str = Field(default="", validation_alias=AliasChoices("description", "concept", "concepto"))
+    lines: list[JournalLineIn] = Field(validation_alias=AliasChoices("lines", "lineas", "apuntes"))
+
+
+class JournalLineOut(BaseModel):
+    id: int
+    account_id: int
+    description: str
+    debit: float
+    credit: float
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JournalEntryOut(BaseModel):
+    id: int
+    date: DateType
+    description: str
+    lines: list[JournalLineOut]
+    model_config = ConfigDict(from_attributes=True)
+
+
+def _validate(body: JournalEntryIn, db: Session) -> None:
+    if len(body.lines) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Se requieren al menos dos líneas")
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
+    for line in body.lines:
+        if line.debit < 0 or line.credit < 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Importes no pueden ser negativos")
+        account = db.query(Account).filter(Account.id == line.account_id).first()
+        if account is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cuenta no existe")
+        total_debit += line.debit
+        total_credit += line.credit
+    if total_debit != total_credit:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El asiento no cuadra")
+
+
+@router.post("/journal-entries", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/entries", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/asientos", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+def create_entry(
+    body: JournalEntryIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JournalEntry:
+    _validate(body, db)
+    entry = JournalEntry(date=body.date, description=body.description)
+    db.add(entry)
+    db.flush()
+    for line in body.lines:
+        db.add(
+            JournalLine(
+                entry_id=entry.id,
+                account_id=line.account_id,
+                description=line.description,
+                debit=line.debit,
+                credit=line.credit,
+            )
+        )
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@router.get("/journal-entries", response_model=list[JournalEntryOut])
+@router.get("/entries", response_model=list[JournalEntryOut])
+@router.get("/asientos", response_model=list[JournalEntryOut])
+def list_entries(
+    date_from: DateType | None = Query(default=None),
+    start_date: DateType | None = Query(default=None),
+    from_date: DateType | None = Query(default=None),
+    date_to: DateType | None = Query(default=None),
+    end_date: DateType | None = Query(default=None),
+    to_date: DateType | None = Query(default=None),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[JournalEntry]:
+    q = db.query(JournalEntry)
+    start = date_from or start_date or from_date
+    end = date_to or end_date or to_date
+    if start is not None:
+        q = q.filter(JournalEntry.date >= start)
+    if end is not None:
+        q = q.filter(JournalEntry.date <= end)
+    return q.order_by(JournalEntry.id).all()
