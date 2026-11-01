@@ -1,0 +1,9 @@
+# Historias (planes locales, no subir)
+/Historias/
+
+# Data (docs y samples locales; pg_sample.json vive en backend/data)
+/Data/
+
+# Entorno
+.env
+.env.*

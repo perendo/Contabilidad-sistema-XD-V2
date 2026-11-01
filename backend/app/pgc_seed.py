@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .models import Account
 
-PGC_PATH = Path(__file__).resolve().parents[2] / "Data" / "pg_sample.json"
+PGC_PATH = Path(__file__).resolve().parents[1] / "data" / "pg_sample.json"
 
 TYPE_MAP = {
     "activo": "Activo",
