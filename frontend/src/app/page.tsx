@@ -106,6 +106,9 @@ export default function HomePage() {
           <Button variant="contained" href="/invoices">
             Facturas emitidas
           </Button>
+          <Button variant="contained" href="/received-invoices">
+            Facturas recibidas
+          </Button>
         </Box>
       </Container>
     </>

@@ -1,7 +1,7 @@
 import bcrypt
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -11,7 +11,7 @@ from .database import get_db
 from .models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
 class LoginRequest(BaseModel):
@@ -28,6 +28,15 @@ def create_access_token(subject: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
     to_encode = {"sub": subject, "exp": expire}
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+
+
+def _authenticate(db: Session, email: str, password: str) -> User:
+    user = db.query(User).filter(User.email == email).first()
+    if user is None or not bcrypt.checkpw(password.encode(), user.password_hash.encode()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas"
+        )
+    return user
 
 
 def get_current_user(
@@ -53,9 +62,16 @@ def get_current_user(
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    user = db.query(User).filter(User.email == body.email).first()
-    if user is None or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
+    user = _authenticate(db, body.email, body.password)
+    return TokenResponse(access_token=create_access_token(user.email))
+
+
+@router.post("/token", response_model=TokenResponse)
+def token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    user = _authenticate(db, form_data.username, form_data.password)
     return TokenResponse(access_token=create_access_token(user.email))
 
 

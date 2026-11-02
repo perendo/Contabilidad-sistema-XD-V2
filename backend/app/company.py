@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .auth import get_current_user
 from .database import get_db
-from .models import Account, Company
+from .models import Company
 from .pgc_seed import seed_pgc
 
 router = APIRouter(prefix="/company", tags=["company"])
@@ -54,6 +54,5 @@ def upsert_company(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Conflicto al guardar la empresa")
     db.refresh(company)
-    if db.query(Account).count() == 0:
-        seed_pgc(db)
+    seed_pgc(db)
     return company

@@ -224,6 +224,30 @@
     "es_cuenta_registro": true
   },
   {
+    "codigo": "4721",
+    "nombre": "Hacienda Pública, IVA soportado 10%",
+    "nivel": 4,
+    "codigo_padre": "472",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "4722",
+    "nombre": "Hacienda Pública, IVA soportado 4%",
+    "nivel": 4,
+    "codigo_padre": "472",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "4723",
+    "nombre": "Hacienda Pública, IVA soportado 0%",
+    "nivel": 4,
+    "codigo_padre": "472",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
     "codigo": "477",
     "nombre": "Hacienda Pública, IVA repercutido",
     "nivel": 3,

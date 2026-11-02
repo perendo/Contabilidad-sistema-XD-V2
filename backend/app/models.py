@@ -86,6 +86,31 @@ class Invoice(Base):
     entry: Mapped["JournalEntry | None"] = relationship("JournalEntry")
 
 
+class ReceivedInvoice(Base):
+    __tablename__ = "received_invoices"
+    __table_args__ = (
+        UniqueConstraint(
+            "third_party_id", "supplier_number", name="uq_received_invoices_supplier_number"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[date] = mapped_column(Date)
+    third_party_id: Mapped[int] = mapped_column(ForeignKey("third_parties.id"))
+    supplier_number: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str] = mapped_column(String(500), default="")
+    base_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    vat_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    expense_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+    entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
+
+    third_party: Mapped["ThirdParty"] = relationship("ThirdParty")
+    expense_account: Mapped["Account"] = relationship("Account")
+    entry: Mapped["JournalEntry | None"] = relationship("JournalEntry")
+
+
 class JournalLine(Base):
     __tablename__ = "journal_lines"
 

@@ -6,6 +6,7 @@ from .auth import router as auth_router
 from .company import router as company_router
 from .invoices import router as invoices_router
 from .journal_entries import router as journal_entries_router
+from .received_invoices import router as received_invoices_router
 from .third_parties import router as third_parties_router
 from .config import settings
 
@@ -26,6 +27,7 @@ app.include_router(accounts_router)
 app.include_router(journal_entries_router)
 app.include_router(third_parties_router)
 app.include_router(invoices_router)
+app.include_router(received_invoices_router)
 
 
 @app.get("/health")

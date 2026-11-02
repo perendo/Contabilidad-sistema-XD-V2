@@ -50,7 +50,7 @@ type Invoice = {
 const VAT_RATES = [21, 10, 4, 0];
 
 const emptyForm = () => ({
-  date: new Date().toLocaleDateString("sv-SE"),
+  date: "",
   third_party_id: "",
   description: "",
   base_amount: "",
@@ -80,6 +80,10 @@ export default function InvoicesPage() {
       router.push("/login");
       return;
     }
+    setForm((prev) => ({
+      ...prev,
+      date: new Date().toLocaleDateString("sv-SE"),
+    }));
     load();
   }, [router]);
 
