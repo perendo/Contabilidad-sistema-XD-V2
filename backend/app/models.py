@@ -80,6 +80,8 @@ class Invoice(Base):
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     vat_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    irpf_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    irpf_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pendiente")
 
@@ -104,6 +106,8 @@ class ReceivedInvoice(Base):
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     vat_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    irpf_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    irpf_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     expense_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pendiente")

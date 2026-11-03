@@ -49,6 +49,14 @@ class ReceivedInvoiceIn(BaseModel):
     expense_account_id: int = Field(
         validation_alias=AliasChoices("expense_account_id", "cuenta_gasto_id", "account_id")
     )
+    irpf_rate: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("irpf_rate", "retencion_irpf", "tipo_retencion"),
+    )
+    irpf_amount: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("irpf_amount", "importe_retencion"),
+    )
 
 
 class ReceivedInvoiceOut(BaseModel):
@@ -61,6 +69,8 @@ class ReceivedInvoiceOut(BaseModel):
     vat_rate: float
     vat_amount: float
     total: float
+    irpf_rate: float | None
+    irpf_amount: float | None
     expense_account_id: int
     entry_id: int | None
     status: str
@@ -150,6 +160,8 @@ def create_received_invoice(
         vat_rate=body.vat_rate,
         vat_amount=vat_amount,
         total=total,
+        irpf_rate=body.irpf_rate,
+        irpf_amount=body.irpf_amount,
         expense_account_id=body.expense_account_id,
         entry_id=entry.id,
     )

@@ -35,6 +35,14 @@ class InvoiceIn(BaseModel):
         validation_alias=AliasChoices("base_amount", "base", "base_imponible"),
     )
     vat_rate: Decimal = Field(validation_alias=AliasChoices("vat_rate", "iva", "tipo_iva"))
+    irpf_rate: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("irpf_rate", "retencion_irpf", "tipo_retencion"),
+    )
+    irpf_amount: Decimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("irpf_amount", "importe_retencion"),
+    )
 
 
 class InvoiceOut(BaseModel):
@@ -48,6 +56,8 @@ class InvoiceOut(BaseModel):
     vat_rate: float
     vat_amount: float
     total: float
+    irpf_rate: float | None
+    irpf_amount: float | None
     entry_id: int | None
     status: str
     model_config = ConfigDict(from_attributes=True)
@@ -126,6 +136,8 @@ def create_invoice(
         vat_rate=body.vat_rate,
         vat_amount=vat_amount,
         total=total,
+        irpf_rate=body.irpf_rate,
+        irpf_amount=body.irpf_amount,
         entry_id=entry.id,
     )
     db.add(invoice)
