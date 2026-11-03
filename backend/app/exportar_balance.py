@@ -1,0 +1,154 @@
+import csv
+import io
+from datetime import date
+from decimal import Decimal
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+
+from .auth import get_current_user
+from .database import get_db
+from .models import Account, JournalEntry, JournalLine, User
+
+router = APIRouter(tags=["exportar-balance"])
+
+
+def _compute_balance(db: Session, date_from: date | None, date_to: date | None):
+    q = db.query(JournalLine).join(JournalEntry)
+    if date_from is not None:
+        q = q.filter(JournalEntry.date >= date_from)
+    if date_to is not None:
+        q = q.filter(JournalEntry.date <= date_to)
+    lines = q.all()
+
+    accounts: dict[int, dict] = {}
+    for line in lines:
+        acct = line.account
+        if acct.id not in accounts:
+            accounts[acct.id] = {
+                "code": acct.code,
+                "name": acct.name,
+                "debe": Decimal("0"),
+                "haber": Decimal("0"),
+            }
+        accounts[acct.id]["debe"] += line.debit
+        accounts[acct.id]["haber"] += line.credit
+
+    total_debe = Decimal("0")
+    total_haber = Decimal("0")
+    rows = []
+    for acct_id in sorted(accounts.keys(), key=lambda aid: accounts[aid]["code"]):
+        acc = accounts[acct_id]
+        debe = acc["debe"]
+        haber = acc["haber"]
+        saldo = debe - haber
+        total_debe += debe
+        total_haber += haber
+        rows.append({
+            "code": acc["code"],
+            "name": acc["name"],
+            "debe": float(debe),
+            "haber": float(haber),
+            "saldo": float(saldo),
+        })
+
+    return rows, float(total_debe), float(total_haber)
+
+
+def _csv_export(rows, total_debe, total_haber, date_from, date_to):
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+    writer.writerow(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
+    for row in rows:
+        writer.writerow([row["code"], row["name"], row["debe"], row["haber"], row["saldo"]])
+    writer.writerow(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
+    return buf.getvalue().encode("utf-8")
+
+
+def _pdf_export(rows, total_debe, total_haber, date_from, date_to):
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=10)
+    pdf.cell(0, 10, "Balance de sumas y saldos", ln=True, align="C")
+    pdf.cell(0, 8, f"Desde {date_from} hasta {date_to}", ln=True, align="C")
+    pdf.ln(4)
+
+    headers = ["Cuenta", "Nombre", "Debe", "Haber", "Saldo"]
+    widths = [25, 70, 30, 30, 30]
+    for i, h in enumerate(headers):
+        pdf.cell(widths[i], 8, h, border=1, align="C")
+    pdf.ln()
+
+    for row in rows:
+        pdf.cell(widths[0], 8, str(row["code"]), border=1)
+        pdf.cell(widths[1], 8, str(row["name"])[:30], border=1)
+        pdf.cell(widths[2], 8, f"{row['debe']:.2f}", border=1, align="R")
+        pdf.cell(widths[3], 8, f"{row['haber']:.2f}", border=1, align="R")
+        pdf.cell(widths[4], 8, f"{row['saldo']:.2f}", border=1, align="R")
+        pdf.ln()
+
+    pdf.cell(widths[0], 8, "TOTAL", border=1)
+    pdf.cell(widths[1], 8, "", border=1)
+    pdf.cell(widths[2], 8, f"{total_debe:.2f}", border=1, align="R")
+    pdf.cell(widths[3], 8, f"{total_haber:.2f}", border=1, align="R")
+    pdf.cell(widths[4], 8, f"{total_debe - total_haber:.2f}", border=1, align="R")
+    pdf.ln()
+
+    return bytes(pdf.output())
+
+
+def _xlsx_export(rows, total_debe, total_haber, date_from, date_to):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Balance"
+
+    ws.append(["Balance de sumas y saldos"])
+    ws.append([f"Desde {date_from} hasta {date_to}"])
+    ws.append([])
+    ws.append(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
+    for row in rows:
+        ws.append([row["code"], row["name"], row["debe"], row["haber"], row["saldo"]])
+    ws.append(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@router.get("/exportar-balance", status_code=status.HTTP_200_OK)
+def exportar_balance(
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    format: str = Query(default="csv", alias="format"),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows, total_debe, total_haber = _compute_balance(db, date_from, date_to)
+
+    if format == "csv":
+        content = _csv_export(rows, total_debe, total_haber, date_from, date_to)
+        return Response(
+            content=content,
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=balance.csv"},
+        )
+    if format == "pdf":
+        content = _pdf_export(rows, total_debe, total_haber, date_from, date_to)
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=balance.pdf"},
+        )
+    if format == "xlsx":
+        content = _xlsx_export(rows, total_debe, total_haber, date_from, date_to)
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=balance.xlsx"},
+        )
+
+    return Response(status_code=status.HTTP_400_BAD_REQUEST, content="Formato no soportado")

@@ -21,7 +21,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 10. [x] Como administrador, quiero generar los libros registro fiscales de facturas emitidas y recibidas, para presentarlos ante la administración. Requiere: #4, #5
 11. [x] Como administrador, quiero ver el balance de sumas y saldos, para verificar la corrección contable. Requiere: #1, #2
 12. [x] Como administrador, quiero ver la cuenta de pérdidas y ganancias y los extractos de cuenta por rango de fechas, para evaluar el rendimiento financiero. Requiere: #1, #2
-13. [ ] Como administrador, quiero exportar los informes a PDF, CSV o Excel, para compartirlos externamente. Requiere: #11, #12
+13. [x] Como administrador, quiero exportar los informes a PDF, CSV o Excel, para compartirlos externamente. Requiere: #11, #12
 14. [ ] Como administrador, quiero seleccionar el ejercicio contable al entrar al sistema, para poder trabajar con dos ejercicios a la vez durante el cierre de enero. Requiere: #1
 15. [x] Como administrador, quiero registrar clientes y proveedores con su NIF/CIF y vincularlos a subcuentas, para generar modelos fiscales (347, IVA, IRPF) con el tercero identificado. Requiere: #1
 16. [ ] Como administrador, quiero adjuntar, listar y descargar documentos en un asiento del libro diario, para respaldar la operación y facilitar auditorías. Requiere: #2
@@ -31,6 +31,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 20. [ ] Como administrador, quiero corregir asientos aceptados mediante un apunte de corrección, para no alterar el histórico. Requiere: #19
 21. [ ] Como administrador, quiero que los asientos aceptados no se puedan borrar, para preservar la trazabilidad. Requiere: #19
 22. [ ] Como administrador, quiero importar facturas recibidas desde documento (PDF/XML) y extraer automáticamente los datos del proveedor para generar el asiento contable, para agilizar el registro de compras/gastos. Requiere: #5, #15, #16
+23. [ ] Como administrador, quiero exportar los informes de impuestos (IVA, IRPF, Modelo 347) y la cuenta de pérdidas y ganancias a PDF, CSV o Excel, para compartirlos externamente. Requiere: #13
 
 ## Decisiones técnicas (MVP)
 - Auth: JWT bearer (python-jose) con usuario seed en tabla `users`; credenciales del seed vía `.env` (`SEED_EMAIL`, `SEED_PASSWORD`) y script `seed.py`. Login JSON en `/auth/login` y formulario OAuth2 en `/auth/token` (usado por Swagger).
@@ -49,3 +50,4 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Balance de sumas y saldos: `GET /balance-sumas-saldos?date_from=&date_to=` agrupa los apuntes del libro diario (solo aceptados) por cuenta dentro del rango de fechas, devuelve por cuenta el debe, el haber y el saldo, con totales globales y un booleano `cuadrado` (total_debe == total_haber); solo lectura e idempotente.
 - Cuenta de pérdidas y ganancias: `GET /cuenta-perdidas-ganancias?date_from=&date_to=` suma los apuntes de cuentas de tipo Ingreso (crédito - débito) y Gasto (débito - crédito) dentro del rango, devuelve total_ingresos, total_gastos, resultado y tipo (beneficio/pérdida/neutro); solo lectura e idempotente.
 - Extracto de cuenta: `GET /extracto-cuenta?account_id=&date_from=&date_to=` devuelve los movimientos de una cuenta (fecha, asiento, descripción, debe, haber, saldo acumulado) con totales y saldo final; solo lectura e idempotente.
+- Exportación de informes: `GET /exportar-balance?date_from=&date_to=&format=csv|pdf|xlsx` exporta el balance de sumas y saldos a CSV (stdlib), PDF (fpdf2) o Excel (openpyxl) como fichero descargable; solo lectura e idempotente.
