@@ -20,7 +20,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 9. [x] Como administrador, quiero identificar terceros que superen el umbral de operaciones, para preparar declaraciones informativas (Modelo 347). Requiere: #4, #5
 10. [x] Como administrador, quiero generar los libros registro fiscales de facturas emitidas y recibidas, para presentarlos ante la administración. Requiere: #4, #5
 11. [x] Como administrador, quiero ver el balance de sumas y saldos, para verificar la corrección contable. Requiere: #1, #2
-12. [ ] Como administrador, quiero ver la cuenta de pérdidas y ganancias y los extractos de cuenta por rango de fechas, para evaluar el rendimiento financiero. Requiere: #1, #2
+12. [x] Como administrador, quiero ver la cuenta de pérdidas y ganancias y los extractos de cuenta por rango de fechas, para evaluar el rendimiento financiero. Requiere: #1, #2
 13. [ ] Como administrador, quiero exportar los informes a PDF, CSV o Excel, para compartirlos externamente. Requiere: #11, #12
 14. [ ] Como administrador, quiero seleccionar el ejercicio contable al entrar al sistema, para poder trabajar con dos ejercicios a la vez durante el cierre de enero. Requiere: #1
 15. [x] Como administrador, quiero registrar clientes y proveedores con su NIF/CIF y vincularlos a subcuentas, para generar modelos fiscales (347, IVA, IRPF) con el tercero identificado. Requiere: #1
@@ -47,3 +47,5 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Modelo 347: `GET /modelo-347?year=&threshold=` agrupa facturas emitidas y recibidas del ejercicio por tercero (NIF/CIF), suma el importe total anual de operaciones y devuelve los terceros que superan el umbral configurado; solo lectura e idempotente.
 - Libros registro fiscales: `GET /libro-registro?year=` devuelve el listado detallado de facturas emitidas y recibidas del ejercicio con fecha, número/número de proveedor, NIF y nombre del tercero, base imponible, tipo IVA, cuota IVA, tipo IRPF, cuota IRPF y total, con totales por tipo de documento; solo lectura e idempotente.
 - Balance de sumas y saldos: `GET /balance-sumas-saldos?date_from=&date_to=` agrupa los apuntes del libro diario (solo aceptados) por cuenta dentro del rango de fechas, devuelve por cuenta el debe, el haber y el saldo, con totales globales y un booleano `cuadrado` (total_debe == total_haber); solo lectura e idempotente.
+- Cuenta de pérdidas y ganancias: `GET /cuenta-perdidas-ganancias?date_from=&date_to=` suma los apuntes de cuentas de tipo Ingreso (crédito - débito) y Gasto (débito - crédito) dentro del rango, devuelve total_ingresos, total_gastos, resultado y tipo (beneficio/pérdida/neutro); solo lectura e idempotente.
+- Extracto de cuenta: `GET /extracto-cuenta?account_id=&date_from=&date_to=` devuelve los movimientos de una cuenta (fecha, asiento, descripción, debe, haber, saldo acumulado) con totales y saldo final; solo lectura e idempotente.

@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .accounts import router as accounts_router
+from .cuenta_perdidas_ganancias import router as cuenta_perdidas_ganancias_router
+from .extracto_cuenta import router as extracto_cuenta_router
 from .auth import router as auth_router
 from .company import router as company_router
 from .invoices import router as invoices_router
@@ -29,6 +31,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(company_router)
 app.include_router(accounts_router)
+app.include_router(cuenta_perdidas_ganancias_router)
+app.include_router(extracto_cuenta_router)
 app.include_router(journal_entries_router)
 app.include_router(third_parties_router)
 app.include_router(invoices_router)
