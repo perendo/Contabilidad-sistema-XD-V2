@@ -81,6 +81,7 @@ class Invoice(Base):
     vat_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pendiente")
 
     third_party: Mapped["ThirdParty"] = relationship("ThirdParty")
     entry: Mapped["JournalEntry | None"] = relationship("JournalEntry")
@@ -105,6 +106,7 @@ class ReceivedInvoice(Base):
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     expense_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pendiente")
 
     third_party: Mapped["ThirdParty"] = relationship("ThirdParty")
     expense_account: Mapped["Account"] = relationship("Account")

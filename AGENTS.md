@@ -14,8 +14,8 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 3. [x] Como administrador, quiero editar o anular asientos no consolidados, para corregir errores. Requiere: #2
 4. [x] Como administrador, quiero registrar facturas emitidas (ventas) con IVA, para que el sistema genere automáticamente el asiento contable.
 5. [x] Como administrador, quiero registrar facturas recibidas (compras/gastos) con IVA, para que el sistema genere automáticamente el asiento contable.
-6. [ ] Como administrador, quiero marcar facturas como pendientes, pagadas o cobradas y generar asientos de tesorería, para controlar el flujo de caja. Requiere: #4, #5
-7. [ ] Como administrador, quiero liquidar el IVA de un periodo (devengado vs. deducible) con saldos a compensar, para cumplir con las obligaciones fiscales. Requiere: #4, #5
+6. [x] Como administrador, quiero marcar facturas como pendientes, pagadas o cobradas y generar asientos de tesorería, para controlar el flujo de caja. Requiere: #4, #5
+7. [x] Como administrador, quiero liquidar el IVA de un periodo (devengado vs. deducible) con saldos a compensar, para cumplir con las obligaciones fiscales. Requiere: #4, #5
 8. [ ] Como administrador, quiero gestionar retenciones de IRPF en facturas de profesionales, alquileres y nóminas, para preparar resúmenes trimestrales. Requiere: #4, #5
 9. [ ] Como administrador, quiero identificar terceros que superen el umbral de operaciones, para preparar declaraciones informativas (Modelo 347). Requiere: #4, #5
 10. [ ] Como administrador, quiero generar los libros registro fiscales de facturas emitidas y recibidas, para presentarlos ante la administración. Requiere: #4, #5
@@ -41,3 +41,5 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Terceros: tabla propia vinculada por account_id (único) a una subcuenta del plan.
 - Facturas emitidas: generan un asiento aceptado en la misma transacción; cliente obligatorio de tipo `Cliente` (se adeuda su subcuenta), ventas fijas en `7000` e IVA repercutido en `4770`, tipos de IVA 21/10/4/0 y numeración correlativa por ejercicio. No hacer `alembic downgrade` por debajo de `d92b6a4f7e58`: borraría la tabla de facturas y dejaría huérfanos sus asientos.
 - Facturas recibidas: gasto obligatorio en subcuenta de tipo `Gasto` con `is_detail`, número del proveedor obligatorio y único por proveedor (sin numeración interna), IVA 21/10/4/0 a `4720/4721/4722/4723` y asiento aceptado en la misma transacción. El seed del PGC se ejecuta en cada guardado de empresa y es idempotente.
+- Tesorería: las facturas emitidas y recibidas tienen estado de pago (`pendiente` por defecto). Al marcar una emitida como `cobrada` o una recibida como `pagada`, se crea un asiento de tesorería aceptado por el total en la misma transacción (emitida: débito cuenta de tesorería 57, crédito cliente; recibida: débito proveedor, crédito tesorería 57). Las facturas ya pagadas/cobradas no se pueden volver a marcar.
+- Liquidación de IVA: `GET /iva-liquidation?date_from=&date_to=` suma el IVA repercutido de facturas emitidas (devengado, `4770`) y el IVA soportado de facturas recibidas (deducible, `4720/4721/4722/4723`) filtrado por `date`, calcula el saldo (a ingresar / a compensar / neutro) y devuelve el desglose por tipo de IVA (21/10/4/0). Es solo lectura e idempotente; no genera asiento contable.

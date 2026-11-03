@@ -49,6 +49,7 @@ class InvoiceOut(BaseModel):
     vat_amount: float
     total: float
     entry_id: int | None
+    status: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -146,3 +147,65 @@ def list_invoices(
     db: Session = Depends(get_db),
 ) -> list[Invoice]:
     return db.query(Invoice).order_by(Invoice.year, Invoice.number).all()
+
+
+class InvoicePayIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    status: str = Field(validation_alias=AliasChoices("status", "estado"))
+
+
+@router.post("/invoices/{invoice_id}/pay", response_model=InvoiceOut)
+def pay_issued_invoice(
+    invoice_id: int,
+    body: InvoicePayIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Invoice:
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no existe")
+    if invoice.status != "pendiente":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La factura ya está pagada o cobrada",
+        )
+    if body.status.strip().lower() != "cobrada":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Estado no válido para factura emitida",
+        )
+
+    treasury_account = (
+        db.query(Account)
+        .filter(Account.type == "Activo", Account.is_detail == True, Account.code.like("57%"))
+        .first()
+    )
+    if treasury_account is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No existe una cuenta de tesorería",
+        )
+
+    add_accepted_entry(
+        db,
+        entry_date=invoice.date,
+        description=f"Cobro factura {invoice.year}/{invoice.number:04d}",
+        lines=[
+            JournalLineIn(
+                account_id=treasury_account.id,
+                description="Cobro factura",
+                debit=invoice.total,
+            ),
+            JournalLineIn(
+                account_id=invoice.third_party.account_id,
+                description="Cobro factura",
+                credit=invoice.total,
+            ),
+        ],
+    )
+
+    invoice.status = "cobrada"
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice

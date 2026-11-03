@@ -63,6 +63,7 @@ class ReceivedInvoiceOut(BaseModel):
     total: float
     expense_account_id: int
     entry_id: int | None
+    status: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -175,3 +176,65 @@ def list_received_invoices(
         .order_by(ReceivedInvoice.date, ReceivedInvoice.id)
         .all()
     )
+
+
+class ReceivedInvoicePayIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    status: str = Field(validation_alias=AliasChoices("status", "estado"))
+
+
+@router.post("/received-invoices/{invoice_id}/pay", response_model=ReceivedInvoiceOut)
+def pay_received_invoice(
+    invoice_id: int,
+    body: ReceivedInvoicePayIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReceivedInvoice:
+    invoice = db.query(ReceivedInvoice).filter(ReceivedInvoice.id == invoice_id).first()
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no existe")
+    if invoice.status != "pendiente":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La factura ya está pagada o cobrada",
+        )
+    if body.status.strip().lower() != "pagada":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Estado no válido para factura recibida",
+        )
+
+    treasury_account = (
+        db.query(Account)
+        .filter(Account.type == "Activo", Account.is_detail == True, Account.code.like("57%"))
+        .first()
+    )
+    if treasury_account is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No existe una cuenta de tesorería",
+        )
+
+    add_accepted_entry(
+        db,
+        entry_date=invoice.date,
+        description=f"Pago factura recibida {invoice.supplier_number}",
+        lines=[
+            JournalLineIn(
+                account_id=invoice.third_party.account_id,
+                description="Pago factura recibida",
+                debit=invoice.total,
+            ),
+            JournalLineIn(
+                account_id=treasury_account.id,
+                description="Pago factura recibida",
+                credit=invoice.total,
+            ),
+        ],
+    )
+
+    invoice.status = "pagada"
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
