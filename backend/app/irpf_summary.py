@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
@@ -54,12 +55,12 @@ def irpf_summary(
         date_to = date(year, end_month, 31)
 
     q_emitidas = db.query(Invoice).filter(
-        Invoice.irpf_rate.isnot(None),
+        or_(Invoice.irpf_rate.isnot(None), Invoice.irpf_amount > 0),
         Invoice.date >= date_from,
         Invoice.date <= date_to,
     )
     q_recibidas = db.query(ReceivedInvoice).filter(
-        ReceivedInvoice.irpf_rate.isnot(None),
+        or_(ReceivedInvoice.irpf_rate.isnot(None), ReceivedInvoice.irpf_amount > 0),
         ReceivedInvoice.date >= date_from,
         ReceivedInvoice.date <= date_to,
     )

@@ -1,0 +1,80 @@
+diff --git a/backend/app/accounts.py b/backend/app/accounts.py
+index c809cfa..1545c10 100644
+--- a/backend/app/accounts.py
++++ b/backend/app/accounts.py
+@@ -28,6 +28,7 @@ class AccountOut(AccountIn):
+ 
+ def _escape_like(value: str) -> str:
++    value = value.replace("\\", "\\\\")
+     return re.sub(r"([%_])", r"\\\1", value)
+ 
+ 
+diff --git a/backend/app/exportar_balance.py b/backend/app/exportar_balance.py
+index adec434..262ca03 100644
+--- a/backend/app/exportar_balance.py
++++ b/backend/app/exportar_balance.py
+@@ -1,3 +1,9 @@
++def _sanitize_cell(val):
++    s = str(val) if val is not None else ""
++    if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
++        return "'" + s
++    return s
++
+ import csv
+ import io
+ from datetime import date
+@@ -59,7 +65,7 @@ def _csv_export(rows, total_debe, total_haber, date_from, date_to):
+     writer = csv.writer(buf, delimiter=";")
+     writer.writerow(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
+     for row in rows:
+-        writer.writerow([row["code"], row["name"], row["debe"], row["haber"], row["saldo"]])
++        writer.writerow([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), row["debe"], row["haber"], row["saldo"]])
+     writer.writerow(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
+     return buf.getvalue().encode("utf-8")
+ 
+@@ -110,7 +116,7 @@ def _xlsx_export(rows, total_debe, total_haber, date_from, date_to):
+     ws.append([])
+     ws.append(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
+     for row in rows:
+-        ws.append([row["code"], row["name"], row["debe"], row["haber"], row["saldo"]])
++        ws.append([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), row["debe"], row["haber"], row["saldo"]])
+     ws.append(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
+ 
+     buf = io.BytesIO()
+diff --git a/backend/app/extracto_cuenta.py b/backend/app/extracto_cuenta.py
+index bac18a6..fcc7139 100644
+--- a/backend/app/extracto_cuenta.py
++++ b/backend/app/extracto_cuenta.py
+@@ -49,7 +49,7 @@ def extracto_cuenta(
+     if account is None:
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no existe")
+ 
+-    q = db.query(JournalLine).join(JournalEntry).filter(JournalLine.account_id == account_id)
++    q = db.query(JournalLine).join(JournalEntry).filter(JournalLine.account_id == account_id, JournalEntry.status == "accepted")
+     if date_from is not None:
+         q = q.filter(JournalEntry.date >= date_from)
+     if date_to is not None:
+diff --git a/backend/app/irpf_summary.py b/backend/app/irpf_summary.py
+index c1cfdae..525c96c 100644
+--- a/backend/app/irpf_summary.py
++++ b/backend/app/irpf_summary.py
+@@ -1,3 +1,4 @@
++from sqlalchemy import or_
+ from datetime import date
+ from decimal import Decimal
+ from fastapi import APIRouter, Depends, Query, status
+@@ -54,12 +55,12 @@ def irpf_summary(
+         date_to = date(year, end_month, 31)
+ 
+     q_emitidas = db.query(Invoice).filter(
+-        Invoice.irpf_rate.isnot(None),
++        or_(Invoice.irpf_rate.isnot(None), Invoice.irpf_amount > 0),
+         Invoice.date >= date_from,
+         Invoice.date <= date_to,
+     )
+     q_recibidas = db.query(ReceivedInvoice).filter(
+-        ReceivedInvoice.irpf_rate.isnot(None),
++        or_(ReceivedInvoice.irpf_rate.isnot(None), ReceivedInvoice.irpf_amount > 0),
+         ReceivedInvoice.date >= date_from,
+         ReceivedInvoice.date <= date_to,
+     )

@@ -1,3 +1,9 @@
+def _sanitize_cell(val):
+    s = str(val) if val is not None else ""
+    if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + s
+    return s
+
 import csv
 import io
 from datetime import date
@@ -59,7 +65,7 @@ def _csv_export(rows, total_debe, total_haber, date_from, date_to):
     writer = csv.writer(buf, delimiter=";")
     writer.writerow(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
     for row in rows:
-        writer.writerow([row["code"], row["name"], row["debe"], row["haber"], row["saldo"]])
+        writer.writerow([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), row["debe"], row["haber"], row["saldo"]])
     writer.writerow(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
     return buf.getvalue().encode("utf-8")
 
@@ -110,7 +116,7 @@ def _xlsx_export(rows, total_debe, total_haber, date_from, date_to):
     ws.append([])
     ws.append(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
     for row in rows:
-        ws.append([row["code"], row["name"], row["debe"], row["haber"], row["saldo"]])
+        ws.append([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), row["debe"], row["haber"], row["saldo"]])
     ws.append(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
 
     buf = io.BytesIO()
