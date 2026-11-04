@@ -49,7 +49,14 @@ def extracto_cuenta(
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no existe")
 
-    q = db.query(JournalLine).join(JournalEntry).filter(JournalLine.account_id == account_id)
+    q = (
+        db.query(JournalLine)
+        .join(JournalEntry)
+        .filter(
+            JournalLine.account_id == account_id,
+            JournalEntry.status == "accepted",
+        )
+    )
     if date_from is not None:
         q = q.filter(JournalEntry.date >= date_from)
     if date_to is not None:
