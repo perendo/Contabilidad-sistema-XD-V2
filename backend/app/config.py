@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     seed_email: str
     seed_password: str
     cors_origins: str = "*"
+    auth_cookie_name: str = "token"
+    session_marker_cookie: str = "auth_session"
+    cookie_secure: bool | None = None
+    cookie_samesite: str = "lax"
+    cookie_domain: str | None = None
 
 
 settings = Settings()

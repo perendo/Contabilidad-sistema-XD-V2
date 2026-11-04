@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { getToken, clearToken, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api } from "@/lib/api";
 import { formatAmount, parseAmount } from "@/lib/format";
 import {
   AppBar,
@@ -79,7 +79,7 @@ export default function JournalPage() {
   });
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
@@ -137,12 +137,12 @@ export default function JournalPage() {
     }
   }
 
-  function logout() {
-    clearToken();
+  async function logout() {
+    await clearSession();
     router.push("/login");
   }
 
-  if (!getToken()) return null;
+  if (!isAuthenticated()) return null;
 
   const totalDebit = form.lines.reduce((sum, l) => sum + parseAmount(l.debit), 0);
   const totalCredit = form.lines.reduce((sum, l) => sum + parseAmount(l.credit), 0);

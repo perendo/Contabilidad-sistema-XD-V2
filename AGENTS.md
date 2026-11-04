@@ -34,7 +34,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 23. [ ] Como administrador, quiero exportar los informes de impuestos (IVA, IRPF, Modelo 347) y la cuenta de pérdidas y ganancias a PDF, CSV o Excel, para compartirlos externamente. Requiere: #13
 
 ## Decisiones técnicas (MVP)
-- Auth: JWT bearer (python-jose) con usuario seed en tabla `users`; credenciales del seed vía `.env` (`SEED_EMAIL`, `SEED_PASSWORD`) y script `seed.py`. Login JSON en `/auth/login` y formulario OAuth2 en `/auth/token` (usado por Swagger).
+- Auth: JWT (python-jose) con usuario seed en tabla `users`; credenciales del seed vía `.env` (`SEED_EMAIL`, `SEED_PASSWORD`) y script `seed.py`. Login JSON en `/auth/login`, formulario OAuth2 en `/auth/token` (usado por Swagger) y `POST /auth/logout`. El token se entrega en cookie HttpOnly/SameSite=Lax (configurable con `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN`) y también como bearer para clientes API; el frontend usa `credentials: "include"` y no guarda el JWT en localStorage.
 - Persistencia: PostgreSQL por entorno (`DATABASE_URL` / `TEST_DATABASE_URL`); migraciones con Alembic (URL desde settings).
 - Tests: BD de test con `drop_all`/`create_all` por test y seed dedicado (`test@example.com` / `testpass123`).
 - Stack backend: FastAPI + SQLAlchemy 2.0 + psycopg 3; frontend Next.js pendiente.
@@ -51,4 +51,4 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Cuenta de pérdidas y ganancias: `GET /cuenta-perdidas-ganancias?date_from=&date_to=` suma los apuntes de cuentas de tipo Ingreso (crédito - débito) y Gasto (débito - crédito) dentro del rango, considerando solo asientos aceptados, devuelve total_ingresos, total_gastos, resultado y tipo (beneficio/pérdida/neutro); solo lectura e idempotente.
 - Extracto de cuenta: `GET /extracto-cuenta?account_id=&date_from=&date_to=` devuelve los movimientos de una cuenta (fecha, asiento, descripción, debe, haber, saldo acumulado) con totales y saldo final; solo lectura e idempotente.
 - Exportación de informes: `GET /exportar-balance?date_from=&date_to=&format=csv|pdf|xlsx` exporta el balance de sumas y saldos a CSV (stdlib), PDF (fpdf2) o Excel (openpyxl) como fichero descargable; solo lectura e idempotente.
-- Documentos adjuntos: tabla `documents` con contenido `LargeBinary` vinculada a `journal_entries`; endpoints para adjuntar (multipart), listar metadatos y descargar por id (con alias de rutas/campos). Solo lectura de metadatos; la eliminación es la historia #17.
+- Documentos adjuntos: tabla `documents` con contenido `LargeBinary` vinculada a `journal_entries`; endpoints canónicos `POST/GET /journal-entries/{entry_id}/attachments` (subida multipart con campo `file` y listado de metadatos) y `GET/DELETE /attachments/{attachment_id}` (descarga y eliminación). Sin rutas ni alias de campos alternativos.

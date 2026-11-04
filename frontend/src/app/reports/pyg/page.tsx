@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { getToken, clearToken, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -27,7 +27,7 @@ export default function PygPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!getToken()) router.push("/login");
+    if (!isAuthenticated()) router.push("/login");
   }, [router]);
 
   async function load() {
@@ -45,12 +45,12 @@ export default function PygPage() {
     }
   }
 
-  function logout() {
-    clearToken();
+  async function logout() {
+    await clearSession();
     router.push("/login");
   }
 
-  if (!getToken()) return null;
+  if (!isAuthenticated()) return null;
 
   return (
     <>

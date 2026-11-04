@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { getToken, clearToken } from "@/lib/api";
+import { API_BASE, isAuthenticated, clearSession } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -21,8 +21,6 @@ import {
   MenuItem,
 } from "@mui/material";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 const FORMATS = [
   { value: "csv", label: "CSV" },
   { value: "pdf", label: "PDF" },
@@ -39,7 +37,7 @@ export default function ExportPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!getToken()) router.push("/login");
+    if (!isAuthenticated()) router.push("/login");
   }, [router]);
 
   async function download() {
@@ -49,9 +47,8 @@ export default function ExportPage() {
       const params = new URLSearchParams({ format });
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      const token = getToken();
-      const res = await fetch(`${API}/exportar-balance?${params.toString()}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const res = await fetch(`${API_BASE}/exportar-balance?${params.toString()}`, {
+        credentials: "include",
       });
       if (!res.ok) {
         throw new Error((await res.text()) || res.statusText);
@@ -72,12 +69,12 @@ export default function ExportPage() {
     }
   }
 
-  function logout() {
-    clearToken();
+  async function logout() {
+    await clearSession();
     router.push("/login");
   }
 
-  if (!getToken()) return null;
+  if (!isAuthenticated()) return null;
 
   return (
     <>

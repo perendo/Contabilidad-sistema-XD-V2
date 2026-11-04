@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { setToken, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   Box,
   Button,
@@ -22,16 +22,20 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { mode, toggle } = useThemeMode();
 
+  // Limpieza puntual del token legacy que versiones anteriores guardaban en localStorage.
+  useEffect(() => {
+    localStorage.removeItem("token");
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const data = await api("/auth/login", {
+      await api("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      setToken(data.access_token);
       router.push("/");
     } catch (err: any) {
       setError(err.message || "Error de autenticación");

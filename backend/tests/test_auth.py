@@ -43,3 +43,36 @@ def test_oauth2_token_endpoint_with_invalid_credentials_returns_401(client):
         data={"username": TEST_EMAIL, "password": "wrong"},
     )
     assert response.status_code == 401
+
+
+def test_login_sets_httponly_cookie_and_allows_cookie_auth(client):
+    response = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    assert response.status_code == 200
+
+    set_cookies = response.headers.get_list("set-cookie")
+    token_cookie = next(c for c in set_cookies if c.startswith("token="))
+    assert "httponly" in token_cookie.lower()
+
+    marker_cookie = next(c for c in set_cookies if c.startswith("auth_session="))
+    assert "httponly" not in marker_cookie.lower()
+
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == TEST_EMAIL
+
+
+def test_logout_clears_cookie_session(client):
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    assert login.status_code == 200
+    assert client.get("/auth/me").status_code == 200
+
+    logout = client.post("/auth/logout")
+    assert logout.status_code == 204
+    assert client.get("/auth/me").status_code == 401
+

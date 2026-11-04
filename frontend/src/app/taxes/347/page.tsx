@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { getToken, clearToken, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -46,7 +46,7 @@ export default function Modelo347Page() {
 
   useEffect(() => {
     setYear(String(new Date().getFullYear()));
-    if (!getToken()) router.push("/login");
+    if (!isAuthenticated()) router.push("/login");
   }, [router]);
 
   async function load() {
@@ -62,12 +62,12 @@ export default function Modelo347Page() {
     }
   }
 
-  function logout() {
-    clearToken();
+  async function logout() {
+    await clearSession();
     router.push("/login");
   }
 
-  if (!getToken()) return null;
+  if (!isAuthenticated()) return null;
 
   const total = result
     ? result.third_parties.reduce((acc, tp) => acc + tp.total_annual, 0)

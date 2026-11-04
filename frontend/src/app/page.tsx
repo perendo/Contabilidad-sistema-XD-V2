@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { getToken, clearToken, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api } from "@/lib/api";
 import { NAV_ITEMS, type NavIcon } from "@/lib/nav";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -66,7 +66,7 @@ export default function HomePage() {
         setAvailableYears([]);
       }
     }
-    if (!getToken()) {
+    if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
@@ -75,7 +75,7 @@ export default function HomePage() {
         const u = await api("/auth/me");
         setUser(u);
       } catch {
-        clearToken();
+        await clearSession();
         router.push("/login");
         return;
       }
@@ -107,12 +107,12 @@ export default function HomePage() {
     })();
   }, [router]);
 
-  function logout() {
+  async function logout() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("fiscal_year_selected");
       sessionStorage.removeItem("fiscal_years_available");
     }
-    clearToken();
+    await clearSession();
     router.push("/login");
   }
 
@@ -137,7 +137,7 @@ export default function HomePage() {
     chooseFiscalYear(trimmed);
   }
 
-  if (!getToken()) return null;
+  if (!isAuthenticated()) return null;
 
   return (
     <>

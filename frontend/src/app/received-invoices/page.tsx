@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { getToken, clearToken, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api } from "@/lib/api";
 import { formatAmount, formatEuro, parseAmount } from "@/lib/format";
 import {
   AppBar,
@@ -83,7 +83,7 @@ export default function ReceivedInvoicesPage() {
   const [form, setForm] = useState(emptyForm());
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
@@ -145,12 +145,12 @@ export default function ReceivedInvoicesPage() {
     }
   }
 
-  function logout() {
-    clearToken();
+  async function logout() {
+    await clearSession();
     router.push("/login");
   }
 
-  if (!getToken()) return null;
+  if (!isAuthenticated()) return null;
 
   const supplierName = (id: number) =>
     suppliers.find((s) => s.id === id)?.name ?? "—";
