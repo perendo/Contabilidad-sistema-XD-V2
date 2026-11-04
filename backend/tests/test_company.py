@@ -31,3 +31,35 @@ def test_create_company_data_persists_and_returns(client):
     accs = client.get("/accounts", headers=headers)
     assert accs.status_code == 200
     assert len(accs.json()) >= 20
+
+
+def test_update_company_does_not_reseed_pgc_when_accounts_exist(client, monkeypatch):
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+    }
+    first = client.put("/company", json=payload, headers=headers)
+    assert first.status_code == 200
+
+    calls = []
+
+    def fake_seed(db):
+        calls.append(True)
+        return 0
+
+    monkeypatch.setattr("app.company.seed_pgc", fake_seed)
+
+    payload["name"] = "Empresa Actualizada SL"
+    second = client.put("/company", json=payload, headers=headers)
+    assert second.status_code == 200
+    assert second.json()["name"] == payload["name"]
+    assert calls == []
