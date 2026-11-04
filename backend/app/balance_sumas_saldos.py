@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
+
 from .auth import get_current_user
 from .database import get_db
 from .models import Account, JournalEntry, JournalLine, User
@@ -39,42 +41,39 @@ def balance_sumas_saldos(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> BalanceSumasSaldosOut:
-    q = db.query(JournalLine).join(JournalEntry)
+    stmt = (
+        db.query(
+            Account.code,
+            Account.name,
+            func.coalesce(func.sum(JournalLine.debit), 0).label("total_debe"),
+            func.coalesce(func.sum(JournalLine.credit), 0).label("total_haber"),
+        )
+        .join(JournalLine, Account.id == JournalLine.account_id)
+        .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+        .filter(JournalEntry.status == "accepted")
+    )
     if date_from is not None:
-        q = q.filter(JournalEntry.date >= date_from)
+        stmt = stmt.filter(JournalEntry.date >= date_from)
     if date_to is not None:
-        q = q.filter(JournalEntry.date <= date_to)
-    lines = q.all()
+        stmt = stmt.filter(JournalEntry.date <= date_to)
 
-    accounts: dict[int, dict] = {}
-    for line in lines:
-        acct = line.account
-        if acct.id not in accounts:
-            accounts[acct.id] = {
-                "code": acct.code,
-                "name": acct.name,
-                "debe": Decimal("0"),
-                "haber": Decimal("0"),
-            }
-        accounts[acct.id]["debe"] += line.debit
-        accounts[acct.id]["haber"] += line.credit
+    rows_db = stmt.group_by(Account.id, Account.code, Account.name).order_by(Account.code).all()
 
     total_debe = Decimal("0")
     total_haber = Decimal("0")
     rows: list[BalanceAccountOut] = []
-    for acct_id in sorted(accounts.keys(), key=lambda aid: accounts[aid]["code"]):
-        acc = accounts[acct_id]
-        debe = acc["debe"]
-        haber = acc["haber"]
-        saldo = debe - haber
-        total_debe += debe
-        total_haber += haber
+    for code, name, debe, haber in rows_db:
+        debe_dec = Decimal(str(debe))
+        haber_dec = Decimal(str(haber))
+        saldo = debe_dec - haber_dec
+        total_debe += debe_dec
+        total_haber += haber_dec
         rows.append(
             BalanceAccountOut(
-                code=acc["code"],
-                name=acc["name"],
-                debe=float(debe),
-                haber=float(haber),
+                code=code,
+                name=name,
+                debe=float(debe_dec),
+                haber=float(haber_dec),
                 saldo=float(saldo),
             )
         )

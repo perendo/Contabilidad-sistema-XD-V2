@@ -9,7 +9,17 @@ from .models import Document, JournalEntry, User
 router = APIRouter(tags=["documents"])
 
 
-def _upload(
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "application/xml",
+    "text/xml",
+}
+
+
+async def _upload(
     entry_id: int,
     file: UploadFile | None = File(None),
     document: UploadFile | None = File(None),
@@ -40,9 +50,29 @@ def _upload(
     entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
-    content = uploaded.file.read()
-    filename = (uploaded.filename or "document")[:255]
+
     content_type = (uploaded.content_type or "application/octet-stream")[:255]
+    if content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de archivo no permitido (solo PDF, PNG, JPG, XML)",
+        )
+
+    size = 0
+    chunks = []
+    while True:
+        chunk = await uploaded.read(64 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="El archivo excede el tamaño máximo permitido (10MB)",
+            )
+        chunks.append(chunk)
+    content = b"".join(chunks)
+    filename = (uploaded.filename or "document")[:255]
     doc = Document(
         entry_id=entry_id,
         filename=filename,

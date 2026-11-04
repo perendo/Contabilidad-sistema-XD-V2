@@ -26,7 +26,7 @@ def _setup_accounts_and_supplier(client, headers, include_vat_accounts=True):
             ("4723", "Hacienda Pública, IVA soportado 0%", "Activo"),
         ]
     for code, name, account_type in codes:
-        payload = {"code": code, "name": name, "type": account_type, "level": 1}
+        payload = {"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True}
         if code == "6000":
             payload["is_detail"] = True
         accounts[code] = client.post(
@@ -74,11 +74,12 @@ def test_received_invoice_generates_balanced_accepted_entry(client):
 
     lines = {(l["account_id"], l["debit"], l["credit"]) for l in entry["lines"]}
     assert lines == {
-        (accounts["6000"]["id"], 200, 0),
-        (accounts["4720"]["id"], 42, 0),
-        (accounts["4000"]["id"], 0, 242),
+        (accounts["6000"]["id"], "200.00", "0.00"),
+        (accounts["4720"]["id"], "42.00", "0.00"),
+        (accounts["4000"]["id"], "0.00", "242.00"),
     }
-    assert sum(l["debit"] for l in entry["lines"]) == sum(l["credit"] for l in entry["lines"])
+    from decimal import Decimal
+    assert sum(Decimal(l["debit"]) for l in entry["lines"]) == sum(Decimal(l["credit"]) for l in entry["lines"])
 
 
 def test_create_received_invoice_saves_supplier_number_and_totals(client):
@@ -147,7 +148,7 @@ def test_received_invoice_books_vat_to_account_for_each_rate(
     entries = client.get("/journal-entries", headers=headers).json()
     entry = [e for e in entries if e["id"] == invoice["entry_id"]][0]
     lines = {(l["account_id"], l["debit"], l["credit"]) for l in entry["lines"]}
-    assert (accounts[account_code]["id"], expected_vat, 0) in lines
+    assert (accounts[account_code]["id"], f"{expected_vat:.2f}", "0.00") in lines
 
 
 def test_received_invoice_rejects_unknown_or_non_supplier_third_party(client):
@@ -156,7 +157,7 @@ def test_received_invoice_rejects_unknown_or_non_supplier_third_party(client):
     accounts, _ = _setup_accounts_and_supplier(client, headers)
     client_account = client.post(
         "/accounts",
-        json={"code": "4300", "name": "Clientes", "type": "Activo", "level": 1},
+        json={"code": "4300", "name": "Clientes", "type": "Activo", "level": 1, "is_detail": True},
         headers=headers,
     ).json()
     customer = client.post(
@@ -257,7 +258,7 @@ def test_received_invoice_rejects_non_expense_account(client):
     accounts, supplier = _setup_accounts_and_supplier(client, headers)
     sales_account = client.post(
         "/accounts",
-        json={"code": "7000", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "7000", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -334,7 +335,7 @@ def test_received_invoice_allows_same_supplier_number_for_different_suppliers(cl
     accounts, first_supplier = _setup_accounts_and_supplier(client, headers)
     second_account = client.post(
         "/accounts",
-        json={"code": "4001", "name": "Proveedores varios", "type": "Pasivo", "level": 1},
+        json={"code": "4001", "name": "Proveedores varios", "type": "Pasivo", "level": 1, "is_detail": True},
         headers=headers,
     ).json()
     second_supplier = client.post(
@@ -414,7 +415,7 @@ def test_received_invoice_rounds_vat_half_up(client):
     entries = client.get("/journal-entries", headers=headers).json()
     entry = [e for e in entries if e["id"] == data["entry_id"]][0]
     lines = {(l["account_id"], l["debit"], l["credit"]) for l in entry["lines"]}
-    assert (accounts["4720"]["id"], 0.11, 0) in lines
+    assert (accounts["4720"]["id"], "0.11", "0.00") in lines
 
 
 def test_received_invoice_duplicate_ignores_surrounding_spaces(client):
@@ -448,7 +449,7 @@ def test_received_invoice_rejects_aggregate_expense_account(client):
     _, supplier = _setup_accounts_and_supplier(client, headers)
     aggregate = client.post(
         "/accounts",
-        json={"code": "600", "name": "Compras", "type": "Gasto", "level": 1},
+        json={"code": "600", "name": "Compras", "type": "Gasto", "level": 1, "is_detail": False},
         headers=headers,
     ).json()
 

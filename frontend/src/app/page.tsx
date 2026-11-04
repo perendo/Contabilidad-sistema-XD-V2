@@ -1,9 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import { getToken, clearToken, api } from "@/lib/api";
+import { NAV_ITEMS, type NavIcon } from "@/lib/nav";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
+import CallReceivedIcon from "@mui/icons-material/CallReceived";
+import BalanceIcon from "@mui/icons-material/Balance";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import ShieldIcon from "@mui/icons-material/Shield";
+import PeopleIcon from "@mui/icons-material/People";
+import DownloadIcon from "@mui/icons-material/Download";
+import type { SvgIconComponent } from "@mui/icons-material";
 import {
   AppBar,
   Toolbar,
@@ -20,6 +33,19 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+
+const NAV_ICONS: Record<NavIcon, SvgIconComponent> = {
+  book: MenuBookIcon,
+  list: FilterListIcon,
+  up: ArrowOutwardIcon,
+  down: CallReceivedIcon,
+  scale: BalanceIcon,
+  trending: TrendingUpIcon,
+  receipt: ReceiptLongIcon,
+  shield: ShieldIcon,
+  users: PeopleIcon,
+  download: DownloadIcon,
+};
 
 export default function HomePage() {
   const router = useRouter();
@@ -185,22 +211,34 @@ export default function HomePage() {
             )}
           </Paper>
         )}
-        {company && (
-          <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
-            <Button variant="contained" href="/accounts">
-              Plan de cuentas
-            </Button>
-            <Button variant="contained" href="/journal">
-              Libro diario
-            </Button>
-            <Button variant="contained" href="/invoices">
-              Facturas emitidas
-            </Button>
-            <Button variant="contained" href="/received-invoices">
-              Facturas recibidas
-            </Button>
+        <Paper sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Accesos
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "1fr 1fr 1fr" },
+              gap: 2,
+            }}
+          >
+            {NAV_ITEMS.map((item) => {
+              const Icon = NAV_ICONS[item.icon];
+              return (
+                <Button
+                  key={item.href}
+                  component={Link}
+                  href={item.href}
+                  variant="outlined"
+                  startIcon={<Icon />}
+                  sx={{ justifyContent: "flex-start", textTransform: "none", py: 1.5 }}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
           </Box>
-        )}
+        </Paper>
       </Container>
     </>
   );

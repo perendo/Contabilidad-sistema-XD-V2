@@ -20,7 +20,7 @@ def _setup(client: TestClient, headers):
         ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo"),
         ("5700", "Caja operativa central", "Activo"),
     ]:
-        payload = {"code": code, "name": name, "type": account_type, "level": 1}
+        payload = {"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True, "is_detail": True, "is_detail": True}
         if code == "5700":
             payload["is_detail"] = True
         accounts[code] = client.post(
@@ -75,15 +75,15 @@ def test_mark_issued_invoice_as_paid_creates_treasury_entry(client):
     entry = treasury_entries[0]
     assert entry["status"] == "accepted"
     lines = {(l["account_id"], l["debit"], l["credit"]) for l in entry["lines"]}
-    assert (accounts["5700"]["id"], 121.0, 0.0) in lines
+    assert (accounts["5700"]["id"], "121.00", "0.00") in lines
 
 
 def _setup_received(client: TestClient, headers):
     accounts = {}
     for code, name, account_type, detail in [
-        ("4000", "Proveedores habituales", "Pasivo", False),
+        ("4000", "Proveedores habituales", "Pasivo", True),
         ("6000", "Compras de mercaderías generales", "Gasto", True),
-        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", False),
+        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", True),
         ("5700", "Caja operativa central", "Activo", True),
     ]:
         payload = {"code": code, "name": name, "type": account_type, "level": 1, "is_detail": detail}
@@ -141,8 +141,8 @@ def test_mark_received_invoice_as_paid_creates_treasury_entry(client):
     entry = treasury_entries[0]
     assert entry["status"] == "accepted"
     lines = {(l["account_id"], l["debit"], l["credit"]) for l in entry["lines"]}
-    assert (accounts["5700"]["id"], 0.0, 242.0) in lines
-    assert (accounts["4000"]["id"], 242.0, 0.0) in lines
+    assert (accounts["5700"]["id"], "0.00", "242.00") in lines
+    assert (accounts["4000"]["id"], "242.00", "0.00") in lines
 
 
 def test_mark_already_paid_invoice_rejected(client):

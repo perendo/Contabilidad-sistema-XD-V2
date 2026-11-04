@@ -16,12 +16,12 @@ def test_create_balanced_multi_line_entry_returns_201(client):
 
     acc_debit = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_credit = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -39,8 +39,8 @@ def test_create_balanced_multi_line_entry_returns_201(client):
     assert data["date"] == "2026-01-15"
     assert data["description"] == "Venta de servicios"
     assert len(data["lines"]) == 2
-    assert data["lines"][0]["debit"] == 100
-    assert data["lines"][1]["credit"] == 100
+    assert data["lines"][0]["debit"] == "100.00"
+    assert data["lines"][1]["credit"] == "100.00"
 
 
 def test_create_unbalanced_entry_returns_400_and_persists_nothing(client):
@@ -49,12 +49,12 @@ def test_create_unbalanced_entry_returns_400_and_persists_nothing(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -80,7 +80,7 @@ def test_create_entry_with_invalid_account_or_amount_returns_400(client):
 
     acc = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -113,12 +113,12 @@ def test_list_entries_filters_by_date_range(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -150,12 +150,12 @@ def test_update_draft_entry_persists_changes(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -192,7 +192,7 @@ def test_update_draft_entry_persists_changes(client):
     assert data["description"] == "Borrador editado"
     assert data["status"] == "draft"
     assert len(data["lines"]) == 2
-    assert data["lines"][0]["debit"] == 50
+    assert data["lines"][0]["debit"] == "50.00"
 
 
 def test_annul_draft_entry_keeps_it_in_journal(client):
@@ -201,12 +201,12 @@ def test_annul_draft_entry_keeps_it_in_journal(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -243,12 +243,12 @@ def test_update_non_draft_entry_returns_400(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -288,12 +288,12 @@ def test_annul_non_draft_entry_returns_400(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
 
@@ -21,7 +23,7 @@ def _setup_accounts_and_client(client, headers, include_default_accounts=True):
     for code, name, account_type in codes:
         accounts[code] = client.post(
             "/accounts",
-            json={"code": code, "name": name, "type": account_type, "level": 1},
+            json={"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True, "is_detail": True},
             headers=headers,
         ).json()
     client_third_party = client.post(
@@ -124,11 +126,11 @@ def test_issued_invoice_generates_balanced_accepted_journal_entry(client):
 
     lines = {(l["account_id"], l["debit"], l["credit"]) for l in entry["lines"]}
     assert lines == {
-        (accounts["4300"]["id"], 121, 0),
-        (accounts["7000"]["id"], 0, 100),
-        (accounts["4770"]["id"], 0, 21),
+        (accounts["4300"]["id"], "121.00", "0.00"),
+        (accounts["7000"]["id"], "0.00", "100.00"),
+        (accounts["4770"]["id"], "0.00", "21.00"),
     }
-    assert sum(l["debit"] for l in entry["lines"]) == sum(l["credit"] for l in entry["lines"])
+    assert sum(Decimal(l["debit"]) for l in entry["lines"]) == sum(Decimal(l["credit"]) for l in entry["lines"])
 
 
 def test_issued_invoice_with_unknown_or_supplier_client_returns_400_and_persists_nothing(client):

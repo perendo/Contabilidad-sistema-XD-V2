@@ -12,12 +12,14 @@ def _login(client):
 
 def _setup_libro_registro(client, headers):
     codes = [
-        ("7000", "Ventas de mercaderías nacionales", "Ingreso", False),
-        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", False),
-        ("4300", "Clientes generales", "Activo", False),
-        ("6000", "Compras de mercaderías generales", "Gasto", True),
-        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", False),
-        ("4000", "Proveedores habituales", "Pasivo", False),
+        ("7000", "Ventas de mercaderÃ­as nacionales", "Ingreso", True),
+        ("4770", "Hacienda PÃºblica, IVA repercutido 21%", "Pasivo", True),
+        ("4300", "Clientes generales", "Activo", True),
+        ("6000", "Compras de mercaderÃ­as generales", "Gasto", True),
+        ("4720", "Hacienda PÃºblica, IVA soportado 21%", "Activo", True),
+        ("4000", "Proveedores habituales", "Pasivo", True),
+        ("4730", "Hacienda PÃºblica, retenciones soportadas", "Activo", True),
+        ("4751", "Hacienda PÃºblica, retenciones practicadas", "Pasivo", True),
     ]
     accounts = {}
     for code, name, account_type, is_detail in codes:
@@ -65,7 +67,7 @@ def test_libro_registro_devuelve_emitidas_y_recibidas_con_campos_fiscales(client
         json={
             "date": "2026-03-10",
             "client_id": cliente["id"],
-            "description": "Servicios de consultoría",
+            "description": "Servicios de consultorÃ­a",
             "base_amount": 1000,
             "vat_rate": 21,
             "irpf_rate": 15,
@@ -79,7 +81,7 @@ def test_libro_registro_devuelve_emitidas_y_recibidas_con_campos_fiscales(client
             "date": "2026-04-15",
             "supplier_id": proveedor["id"],
             "supplier_number": "F-2026-0100",
-            "description": "Compra de mercaderías",
+            "description": "Compra de mercaderÃ­as",
             "base_amount": 2000,
             "vat_rate": 21,
             "expense_account_id": accounts["6000"]["id"],
@@ -110,7 +112,7 @@ def test_libro_registro_devuelve_emitidas_y_recibidas_con_campos_fiscales(client
     assert fila_emitida["vat_amount"] == 210.0
     assert fila_emitida["irpf_rate"] == 15.0
     assert fila_emitida["irpf_amount"] == 150.0
-    assert fila_emitida["total"] == 1210.0
+    assert fila_emitida["total"] == 1060.0
 
     recibidas = data["recibidas"]
     assert len(recibidas) == 1
@@ -124,7 +126,7 @@ def test_libro_registro_devuelve_emitidas_y_recibidas_con_campos_fiscales(client
     assert fila_recibida["vat_amount"] == 420.0
     assert fila_recibida["irpf_rate"] == 15.0
     assert fila_recibida["irpf_amount"] == 300.0
-    assert fila_recibida["total"] == 2420.0
+    assert fila_recibida["total"] == 2120.0
 
 
 def test_libro_registro_filtra_por_ejercicio(client):

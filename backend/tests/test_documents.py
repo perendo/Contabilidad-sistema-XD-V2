@@ -16,12 +16,12 @@ def test_attach_document_to_entry_returns_201_with_metadata(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -41,14 +41,14 @@ def test_attach_document_to_entry_returns_201_with_metadata(client):
 
     response = client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("test.txt", b"hello world", "text/plain")},
+        files={"file": ("test.txt", b"hello world", "text/xml")},
         headers=headers,
     )
     assert response.status_code == 201
     data = response.json()
     assert data["entry_id"] == entry_id
     assert data["filename"] == "test.txt"
-    assert data["content_type"] == "text/plain"
+    assert data["content_type"] == "text/xml"
     assert data["size"] == len(b"hello world")
     assert "id" in data
 
@@ -59,12 +59,12 @@ def test_list_entry_documents_returns_attached_metadata(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -84,12 +84,12 @@ def test_list_entry_documents_returns_attached_metadata(client):
 
     client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("a.txt", b"aaa", "text/plain")},
+        files={"file": ("a.txt", b"aaa", "text/xml")},
         headers=headers,
     )
     client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("b.txt", b"bbbbb", "text/plain")},
+        files={"file": ("b.txt", b"bbbbb", "text/xml")},
         headers=headers,
     )
 
@@ -111,12 +111,12 @@ def test_download_entry_document_returns_original_content(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -136,7 +136,7 @@ def test_download_entry_document_returns_original_content(client):
 
     uploaded = client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("hello.txt", b"hello world", "text/plain")},
+        files={"file": ("hello.txt", b"hello world", "text/xml")},
         headers=headers,
     ).json()
     doc_id = uploaded["id"]
@@ -146,7 +146,7 @@ def test_download_entry_document_returns_original_content(client):
     )
     assert response.status_code == 200
     assert response.content == b"hello world"
-    assert response.headers["content-type"].startswith("text/plain")
+    assert response.headers["content-type"].startswith("text/xml")
     assert "hello.txt" in response.headers.get("content-disposition", "")
 
 
@@ -156,7 +156,7 @@ def test_attach_document_to_unknown_entry_returns_404(client):
 
     response = client.post(
         "/journal-entries/999999/documents",
-        files={"file": ("test.txt", b"hello", "text/plain")},
+        files={"file": ("test.txt", b"hello", "text/xml")},
         headers=headers,
     )
     assert response.status_code == 404
@@ -168,12 +168,12 @@ def test_list_documents_of_entry_without_attachments_returns_empty(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -202,12 +202,12 @@ def test_delete_scoped_document_removes_it(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -227,7 +227,7 @@ def test_delete_scoped_document_removes_it(client):
 
     uploaded = client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("test.txt", b"hello world", "text/plain")},
+        files={"file": ("test.txt", b"hello world", "text/xml")},
         headers=headers,
     ).json()
     doc_id = uploaded["id"]
@@ -253,12 +253,12 @@ def test_delete_direct_document_by_id_removes_it(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -278,7 +278,7 @@ def test_delete_direct_document_by_id_removes_it(client):
 
     uploaded = client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("test.txt", b"hello world", "text/plain")},
+        files={"file": ("test.txt", b"hello world", "text/xml")},
         headers=headers,
     ).json()
     doc_id = uploaded["id"]
@@ -309,12 +309,12 @@ def test_delete_document_twice_returns_404_on_second(client):
 
     acc_a = client.post(
         "/accounts",
-        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     acc_b = client.post(
         "/accounts",
-        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
 
@@ -334,7 +334,7 @@ def test_delete_document_twice_returns_404_on_second(client):
 
     uploaded = client.post(
         f"/journal-entries/{entry_id}/documents",
-        files={"file": ("test.txt", b"hello world", "text/plain")},
+        files={"file": ("test.txt", b"hello world", "text/xml")},
         headers=headers,
     ).json()
     doc_id = uploaded["id"]

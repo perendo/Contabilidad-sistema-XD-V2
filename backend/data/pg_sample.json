@@ -438,5 +438,37 @@
     "codigo_padre": "705",
     "tipo": "ingreso",
     "es_cuenta_registro": true
+  },
+  {
+    "codigo": "473",
+    "nombre": "Hacienda Publica, retenciones y pagos a cuenta",
+    "nivel": 3,
+    "codigo_padre": "47",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "4730",
+    "nombre": "Hacienda Publica, retenciones soportadas IRPF",
+    "nivel": 4,
+    "codigo_padre": "473",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "475",
+    "nombre": "Hacienda Publica, acreedor por conceptos fiscales",
+    "nivel": 3,
+    "codigo_padre": "47",
+    "tipo": "pasivo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "4751",
+    "nombre": "Hacienda Publica, acreedor por retenciones practicadas",
+    "nivel": 4,
+    "codigo_padre": "475",
+    "tipo": "pasivo",
+    "es_cuenta_registro": true
   }
 ]

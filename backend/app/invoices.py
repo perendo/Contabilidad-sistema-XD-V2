@@ -93,37 +93,59 @@ def create_invoice(
         )
 
     vat_amount = (body.base_amount * body.vat_rate / 100).quantize(CENT, rounding=ROUND_HALF_UP)
+    irpf_amount = Decimal("0")
+    if body.irpf_rate is not None:
+        irpf_amount = (body.base_amount * body.irpf_rate / 100).quantize(CENT, rounding=ROUND_HALF_UP)
+    elif body.irpf_amount is not None:
+        irpf_amount = body.irpf_amount
+    total = body.base_amount + vat_amount - irpf_amount
     year = body.date.year
     # Serializa la asignación del número por ejercicio para evitar correlativos duplicados.
-    db.execute(text("SELECT pg_advisory_xact_lock(:year)"), {"year": year})
+    if db.bind.dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(:year)"), {"year": year})
     last_number = (
         db.query(func.max(Invoice.number)).filter(Invoice.year == year).scalar()
     )
     number = (last_number or 0) + 1
     description = f"Factura {year}/{number:04d} - {third_party.name}"
-    total = body.base_amount + vat_amount
+
+    lines = [
+        JournalLineIn(
+            account_id=third_party.account_id,
+            description=body.description,
+            debit=total,
+        ),
+        JournalLineIn(
+            account_id=sales_account.id,
+            description=body.description,
+            credit=body.base_amount,
+        ),
+        JournalLineIn(
+            account_id=vat_account.id,
+            description=body.description,
+            credit=vat_amount,
+        ),
+    ]
+    if irpf_amount > 0:
+        retention_account = db.query(Account).filter(Account.code == "4730").first()
+        if retention_account is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cuenta de retención IRPF no encontrada",
+            )
+        lines.append(
+            JournalLineIn(
+                account_id=retention_account.id,
+                description="Retención IRPF soportada",
+                debit=irpf_amount,
+            )
+        )
 
     entry = add_accepted_entry(
         db,
         entry_date=body.date,
         description=description,
-        lines=[
-            JournalLineIn(
-                account_id=third_party.account_id,
-                description=body.description,
-                debit=total,
-            ),
-            JournalLineIn(
-                account_id=sales_account.id,
-                description=body.description,
-                credit=body.base_amount,
-            ),
-            JournalLineIn(
-                account_id=vat_account.id,
-                description=body.description,
-                credit=vat_amount,
-            ),
-        ],
+        lines=lines,
     )
 
     invoice = Invoice(
@@ -137,7 +159,7 @@ def create_invoice(
         vat_amount=vat_amount,
         total=total,
         irpf_rate=body.irpf_rate,
-        irpf_amount=body.irpf_amount,
+        irpf_amount=irpf_amount,
         entry_id=entry.id,
     )
     db.add(invoice)

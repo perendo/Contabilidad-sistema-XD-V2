@@ -12,19 +12,19 @@ def _login(client):
 
 def _setup(client, headers):
     codes = [
-        ("7000", "Ventas de mercaderías nacionales", "Ingreso", False),
-        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", False),
-        ("4300", "Clientes generales", "Activo", False),
-        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", False),
-        ("4721", "Hacienda Pública, IVA soportado 10%", "Activo", False),
-        ("4722", "Hacienda Pública, IVA soportado 4%", "Activo", False),
-        ("4723", "Hacienda Pública, IVA soportado 0%", "Activo", False),
+        ("7000", "Ventas de mercaderías nacionales", "Ingreso", True),
+        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", True),
+        ("4300", "Clientes generales", "Activo", True),
+        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", True),
+        ("4721", "Hacienda Pública, IVA soportado 10%", "Activo", True),
+        ("4722", "Hacienda Pública, IVA soportado 4%", "Activo", True),
+        ("4723", "Hacienda Pública, IVA soportado 0%", "Activo", True),
         ("6000", "Compras de mercaderías generales", "Gasto", True),
-        ("4000", "Proveedores habituales", "Pasivo", False),
+        ("4000", "Proveedores habituales", "Pasivo", True),
     ]
     accounts = {}
     for code, name, account_type, is_detail in codes:
-        payload = {"code": code, "name": name, "type": account_type, "level": 1, "is_detail": is_detail}
+        payload = {"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True, "is_detail": is_detail}
         accounts[code] = client.post("/accounts", json=payload, headers=headers).json()
 
     cliente = client.post(

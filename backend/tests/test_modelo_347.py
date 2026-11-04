@@ -12,12 +12,12 @@ def _login(client):
 
 def _setup_modelo_347(client, headers):
     codes = [
-        ("7000", "Ventas de mercaderías nacionales", "Ingreso", False),
-        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", False),
-        ("4300", "Clientes generales", "Activo", False),
+        ("7000", "Ventas de mercaderías nacionales", "Ingreso", True),
+        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", True),
+        ("4300", "Clientes generales", "Activo", True),
         ("6000", "Compras de mercaderías generales", "Gasto", True),
-        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", False),
-        ("4000", "Proveedores habituales", "Pasivo", False),
+        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", True),
+        ("4000", "Proveedores habituales", "Pasivo", True),
     ]
     accounts = {}
     for code, name, account_type, is_detail in codes:
@@ -25,14 +25,14 @@ def _setup_modelo_347(client, headers):
             "code": code,
             "name": name,
             "type": account_type,
-            "level": 1,
+            "level": 1, "is_detail": True,
             "is_detail": is_detail,
         }
         accounts[code] = client.post("/accounts", json=payload, headers=headers).json()
 
     cliente_alto_acc = client.post(
         "/accounts",
-        json={"code": "4301", "name": "Clientes alto", "type": "Activo", "level": 1},
+        json={"code": "4301", "name": "Clientes alto", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     cliente_alto = client.post(
@@ -48,7 +48,7 @@ def _setup_modelo_347(client, headers):
 
     cliente_bajo_acc = client.post(
         "/accounts",
-        json={"code": "4302", "name": "Clientes bajo", "type": "Activo", "level": 1},
+        json={"code": "4302", "name": "Clientes bajo", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     cliente_bajo = client.post(
@@ -64,7 +64,7 @@ def _setup_modelo_347(client, headers):
 
     proveedor_alto_acc = client.post(
         "/accounts",
-        json={"code": "4001", "name": "Proveedores alto", "type": "Pasivo", "level": 1},
+        json={"code": "4001", "name": "Proveedores alto", "type": "Pasivo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     proveedor_alto = client.post(
@@ -80,7 +80,7 @@ def _setup_modelo_347(client, headers):
 
     proveedor_bajo_acc = client.post(
         "/accounts",
-        json={"code": "4002", "name": "Proveedores bajo", "type": "Pasivo", "level": 1},
+        json={"code": "4002", "name": "Proveedores bajo", "type": "Pasivo", "level": 1, "is_detail": True, "is_detail": True},
         headers=headers,
     ).json()
     proveedor_bajo = client.post(

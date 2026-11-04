@@ -12,12 +12,14 @@ def _login(client):
 
 def _setup_irpf(client, headers):
     codes = [
-        ("7000", "Ventas de mercaderías nacionales", "Ingreso", False),
-        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", False),
-        ("4300", "Clientes generales", "Activo", False),
+        ("7000", "Ventas de mercaderías nacionales", "Ingreso", True),
+        ("4770", "Hacienda Pública, IVA repercutido 21%", "Pasivo", True),
+        ("4300", "Clientes generales", "Activo", True),
         ("6000", "Compras de mercaderías generales", "Gasto", True),
-        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", False),
-        ("4000", "Proveedores habituales", "Pasivo", False),
+        ("4720", "Hacienda Pública, IVA soportado 21%", "Activo", True),
+        ("4000", "Proveedores habituales", "Pasivo", True),
+        ("4730", "Hacienda Pública, retenciones soportadas", "Activo", True),
+        ("4751", "Hacienda Pública, retenciones practicadas", "Pasivo", True),
     ]
     accounts = {}
     for code, name, account_type, is_detail in codes:
@@ -148,10 +150,12 @@ def test_irpf_quarterly_summary_returns_totals(client):
     data = response.json()
     assert data["year"] == 2026
     assert data["quarter"] == 1
-    assert data["base_sujeta_total"] == 300.0
-    assert data["irpf_rate"] == 15.0
-    assert data["irpf_amount_total"] == 45.0
-    assert data["facturas_count"] == 2
+    assert data["modelo_111"]["base"] == 200.0
+    assert data["modelo_111"]["retenciones_a_ingresar"] == 30.0
+    assert data["pagos_a_cuenta_130"]["base"] == 100.0
+    assert data["pagos_a_cuenta_130"]["retenciones_soportadas"] == 15.0
+    assert data["facturas_emitidas_count"] == 1
+    assert data["facturas_recibidas_count"] == 1
 
 
 def test_irpf_quarterly_summary_idempotent(client):

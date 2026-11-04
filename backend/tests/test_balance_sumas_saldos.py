@@ -21,7 +21,7 @@ def _setup_balance(client, headers):
     for code, name, account_type in codes:
         accounts[code] = client.post(
             "/accounts",
-            json={"code": code, "name": name, "type": account_type, "level": 1},
+            json={"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True, "is_detail": True},
             headers=headers,
         ).json()
 

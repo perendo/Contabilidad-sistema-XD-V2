@@ -31,9 +31,9 @@ class JournalLineOut(BaseModel):
     id: int
     account_id: int
     description: str
-    debit: float
-    credit: float
-    model_config = ConfigDict(from_attributes=True)
+    debit: Decimal
+    credit: Decimal
+    model_config = ConfigDict(from_attributes=True, json_encoders={Decimal: lambda v: f"{v:.2f}"})
 
 
 class JournalEntryOut(BaseModel):
@@ -61,6 +61,12 @@ def _validate(body: JournalEntryIn, db: Session) -> None:
         account = db.query(Account).filter(Account.id == line.account_id).first()
         if account is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cuenta no existe")
+        if not account.is_detail:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La cuenta {account.code} ({account.name}) es una cuenta de grupo/balance. "
+                f"Solo se permiten apuntes en subcuentas de detalle (último nivel).",
+            )
         total_debit += line.debit
         total_credit += line.credit
     if total_debit != total_credit:

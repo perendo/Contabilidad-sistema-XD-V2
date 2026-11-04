@@ -97,7 +97,14 @@ def create_received_invoice(
     vat_amount = (body.base_amount * body.vat_rate / 100).quantize(
         CENT, rounding=ROUND_HALF_UP
     )
-    total = body.base_amount + vat_amount
+    irpf_amount = Decimal("0")
+    if body.irpf_rate is not None:
+        irpf_amount = (body.base_amount * body.irpf_rate / 100).quantize(
+            CENT, rounding=ROUND_HALF_UP
+        )
+    elif body.irpf_amount is not None:
+        irpf_amount = body.irpf_amount
+    total = body.base_amount + vat_amount - irpf_amount
     supplier_number = body.supplier_number.strip()
     if not supplier_number:
         raise HTTPException(
@@ -129,27 +136,43 @@ def create_received_invoice(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cuenta de IVA soportado no encontrada",
         )
+    lines = [
+        JournalLineIn(
+            account_id=expense_account.id,
+            description=body.description,
+            debit=body.base_amount,
+        ),
+        JournalLineIn(
+            account_id=vat_account.id,
+            description=body.description,
+            debit=vat_amount,
+        ),
+        JournalLineIn(
+            account_id=supplier.account_id,
+            description=body.description,
+            credit=total,
+        ),
+    ]
+    if irpf_amount > 0:
+        retention_account = db.query(Account).filter(Account.code == "4751").first()
+        if retention_account is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cuenta de retención IRPF no encontrada",
+            )
+        lines.append(
+            JournalLineIn(
+                account_id=retention_account.id,
+                description="Retención IRPF practicada",
+                credit=irpf_amount,
+            )
+        )
+
     entry = add_accepted_entry(
         db,
         entry_date=body.date,
         description=f"Factura recibida {supplier_number} - {supplier.name}",
-        lines=[
-            JournalLineIn(
-                account_id=expense_account.id,
-                description=body.description,
-                debit=body.base_amount,
-            ),
-            JournalLineIn(
-                account_id=vat_account.id,
-                description=body.description,
-                debit=vat_amount,
-            ),
-            JournalLineIn(
-                account_id=supplier.account_id,
-                description=body.description,
-                credit=total,
-            ),
-        ],
+        lines=lines,
     )
     invoice = ReceivedInvoice(
         date=body.date,
@@ -161,7 +184,7 @@ def create_received_invoice(
         vat_amount=vat_amount,
         total=total,
         irpf_rate=body.irpf_rate,
-        irpf_amount=body.irpf_amount,
+        irpf_amount=irpf_amount,
         expense_account_id=body.expense_account_id,
         entry_id=entry.id,
     )

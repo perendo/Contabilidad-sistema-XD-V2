@@ -22,12 +22,15 @@ from .config import settings
 app = FastAPI(title="Contabilidad")
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if not origins or origins == ["*"]:
+    origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth_router)
