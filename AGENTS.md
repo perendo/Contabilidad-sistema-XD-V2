@@ -26,12 +26,13 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 15. [x] Como administrador, quiero registrar clientes y proveedores con su NIF/CIF y vincularlos a subcuentas, para generar modelos fiscales (347, IVA, IRPF) con el tercero identificado. Requiere: #1
 16. [x] Como administrador, quiero adjuntar, listar y descargar documentos en un asiento del libro diario, para respaldar la operación y facilitar auditorías. Requiere: #2
 17. [x] Como administrador, quiero eliminar documentos adjuntos de un asiento, para corregir errores de carga. Requiere: #16
-18. [ ] Como administrador, quiero registrar asientos en borrador pendientes de validación, para poder introducir movimientos bancarios importados y revisarlos antes de aceptarlos. Requiere: #2
+18. [ ] Como administrador, quiero importar movimientos bancarios desde un fichero Excel asignando a cada IBAN su cuenta contable del PGC, para revisarlos como asientos en borrador antes de aceptarlos. Requiere: #2
 19. [ ] Como administrador, quiero aceptar un asiento borrador solo si está cuadrado y revisado, para garantizar la corrección contable. Requiere: #18
 20. [ ] Como administrador, quiero corregir asientos aceptados mediante un apunte de corrección, para no alterar el histórico. Requiere: #19
 21. [ ] Como administrador, quiero que los asientos aceptados no se puedan borrar, para preservar la trazabilidad. Requiere: #19
 22. [ ] Como administrador, quiero importar facturas recibidas desde documento (PDF/XML) y extraer automáticamente los datos del proveedor para generar el asiento contable, para agilizar el registro de compras/gastos. Requiere: #5, #15, #16
 23. [ ] Como administrador, quiero exportar los informes de impuestos (IVA, IRPF, Modelo 347) y la cuenta de pérdidas y ganancias a PDF, CSV o Excel, para compartirlos externamente. Requiere: #13
+24. [ ] Como administrador, quiero importar movimientos bancarios desde un fichero Norma 43 CSB asignando al IBAN su cuenta contable del PGC, para revisarlos como asientos en borrador antes de aceptarlos. Requiere: #18
 
 ## Decisiones técnicas (MVP)
 - Auth: JWT (python-jose) con usuario seed en tabla `users`; credenciales del seed vía `.env` (`SEED_EMAIL`, `SEED_PASSWORD`) y script `seed.py`. Login JSON en `/auth/login`, formulario OAuth2 en `/auth/token` (usado por Swagger) y `POST /auth/logout`. El token se entrega en la cookie HttpOnly `token` (SameSite=Lax por defecto, `Secure` automático sobre HTTPS o forzable con `COOKIE_SECURE`, dominio con `COOKIE_DOMAIN`, nombre configurable con `AUTH_COOKIE_NAME`) y también como bearer para clientes API. El frontend usa `credentials: "include"`, comprueba la sesión con el marcador no sensible `auth_session` y no guarda el JWT en localStorage. `POST /auth/logout` borra ambas cookies.

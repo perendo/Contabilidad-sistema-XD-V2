@@ -32,6 +32,11 @@ def test_create_company_data_persists_and_returns(client):
     assert accs.status_code == 200
     assert len(accs.json()) >= 20
 
+    suspense = next(a for a in accs.json() if a["code"] == "555")
+    assert suspense["name"] == "Partidas pendientes de aplicación"
+    assert suspense["type"] == "Activo"
+    assert suspense["is_detail"] is True
+
 
 def test_update_company_does_not_reseed_pgc_when_accounts_exist(client, monkeypatch):
     login = client.post(

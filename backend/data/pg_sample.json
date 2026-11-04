@@ -272,6 +272,22 @@
     "es_cuenta_registro": false
   },
   {
+    "codigo": "55",
+    "nombre": "Otras cuentas no bancarias",
+    "nivel": 2,
+    "codigo_padre": "5",
+    "tipo": "activo",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "555",
+    "nombre": "Partidas pendientes de aplicación",
+    "nivel": 3,
+    "codigo_padre": "55",
+    "tipo": "activo",
+    "es_cuenta_registro": true
+  },
+  {
     "codigo": "57",
     "nombre": "Tesorería",
     "nivel": 2,
