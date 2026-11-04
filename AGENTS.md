@@ -22,9 +22,9 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 11. [x] Como administrador, quiero ver el balance de sumas y saldos, para verificar la corrección contable. Requiere: #1, #2
 12. [x] Como administrador, quiero ver la cuenta de pérdidas y ganancias y los extractos de cuenta por rango de fechas, para evaluar el rendimiento financiero. Requiere: #1, #2
 13. [x] Como administrador, quiero exportar los informes a PDF, CSV o Excel, para compartirlos externamente. Requiere: #11, #12
-14. [ ] Como administrador, quiero seleccionar el ejercicio contable al entrar al sistema, para poder trabajar con dos ejercicios a la vez durante el cierre de enero. Requiere: #1
+14. [x] Como administrador, quiero seleccionar el ejercicio contable al entrar al sistema, para poder trabajar con dos ejercicios a la vez durante el cierre de enero. Requiere: #1
 15. [x] Como administrador, quiero registrar clientes y proveedores con su NIF/CIF y vincularlos a subcuentas, para generar modelos fiscales (347, IVA, IRPF) con el tercero identificado. Requiere: #1
-16. [ ] Como administrador, quiero adjuntar, listar y descargar documentos en un asiento del libro diario, para respaldar la operación y facilitar auditorías. Requiere: #2
+16. [x] Como administrador, quiero adjuntar, listar y descargar documentos en un asiento del libro diario, para respaldar la operación y facilitar auditorías. Requiere: #2
 17. [ ] Como administrador, quiero eliminar documentos adjuntos de un asiento, para corregir errores de carga. Requiere: #16
 18. [ ] Como administrador, quiero registrar asientos en borrador pendientes de validación, para poder introducir movimientos bancarios importados y revisarlos antes de aceptarlos. Requiere: #2
 19. [ ] Como administrador, quiero aceptar un asiento borrador solo si está cuadrado y revisado, para garantizar la corrección contable. Requiere: #18
@@ -51,3 +51,4 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 - Cuenta de pérdidas y ganancias: `GET /cuenta-perdidas-ganancias?date_from=&date_to=` suma los apuntes de cuentas de tipo Ingreso (crédito - débito) y Gasto (débito - crédito) dentro del rango, devuelve total_ingresos, total_gastos, resultado y tipo (beneficio/pérdida/neutro); solo lectura e idempotente.
 - Extracto de cuenta: `GET /extracto-cuenta?account_id=&date_from=&date_to=` devuelve los movimientos de una cuenta (fecha, asiento, descripción, debe, haber, saldo acumulado) con totales y saldo final; solo lectura e idempotente.
 - Exportación de informes: `GET /exportar-balance?date_from=&date_to=&format=csv|pdf|xlsx` exporta el balance de sumas y saldos a CSV (stdlib), PDF (fpdf2) o Excel (openpyxl) como fichero descargable; solo lectura e idempotente.
+- Documentos adjuntos: tabla `documents` con contenido `LargeBinary` vinculada a `journal_entries`; endpoints para adjuntar (multipart), listar metadatos y descargar por id (con alias de rutas/campos). Solo lectura de metadatos; la eliminación es la historia #17.

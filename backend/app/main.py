@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .accounts import router as accounts_router
 from .cuenta_perdidas_ganancias import router as cuenta_perdidas_ganancias_router
+from .documents import router as documents_router
 from .extracto_cuenta import router as extracto_cuenta_router
 from .auth import router as auth_router
 from .company import router as company_router
@@ -44,6 +45,7 @@ app.include_router(balance_sumas_saldos_router)
 app.include_router(exportar_balance_router)
 app.include_router(modelo_347_router)
 app.include_router(received_invoices_router)
+app.include_router(documents_router)
 
 
 @app.get("/health")

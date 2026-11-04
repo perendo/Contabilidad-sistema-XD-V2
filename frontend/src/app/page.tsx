@@ -15,6 +15,10 @@ import {
   TextField,
   Alert,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 
 export default function HomePage() {
@@ -22,9 +26,20 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<string | null>(null);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
   const { mode, toggle } = useThemeMode();
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSelectedYear(sessionStorage.getItem("fiscal_year_selected"));
+      try {
+        const stored = sessionStorage.getItem("fiscal_years_available");
+        if (stored) setAvailableYears(JSON.parse(stored));
+      } catch {
+        setAvailableYears([]);
+      }
+    }
     if (!getToken()) {
       router.push("/login");
       return;
@@ -41,6 +56,23 @@ export default function HomePage() {
       try {
         const c = await api("/company");
         setCompany(c);
+        const configured = String(c.fiscal_year);
+        setAvailableYears((prev) => {
+          const base = prev.length ? prev : [];
+          const next = base.includes(configured) ? base : [configured, ...base];
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("fiscal_years_available", JSON.stringify(next));
+          }
+          return next;
+        });
+        setSelectedYear((prev) => {
+          if (prev) return prev;
+          const def = configured;
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("fiscal_year_selected", def);
+          }
+          return def;
+        });
       } catch {
         setCompany(null);
       } finally {
@@ -50,8 +82,33 @@ export default function HomePage() {
   }, [router]);
 
   function logout() {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("fiscal_year_selected");
+      sessionStorage.removeItem("fiscal_years_available");
+    }
     clearToken();
     router.push("/login");
+  }
+
+  function chooseFiscalYear(year: string) {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("fiscal_year_selected", year);
+    }
+    setSelectedYear(year);
+  }
+
+  function addFiscalYear(year: string) {
+    const trimmed = year.trim();
+    if (!/^\d{4}$/.test(trimmed)) return;
+    setAvailableYears((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const next = [...prev, trimmed].sort();
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("fiscal_years_available", JSON.stringify(next));
+      }
+      return next;
+    });
+    chooseFiscalYear(trimmed);
   }
 
   if (!getToken()) return null;
@@ -63,6 +120,35 @@ export default function HomePage() {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Panel
           </Typography>
+          {selectedYear && (
+            <FormControl size="small" sx={{ mr: 2, minWidth: 110 }}>
+              <InputLabel id="fiscal-year-label" sx={{ color: "inherit" }}>
+                Ejercicio
+              </InputLabel>
+              <Select
+                labelId="fiscal-year-label"
+                value={selectedYear}
+                label="Ejercicio"
+                onChange={(e) => {
+                  const value = e.target.value as string;
+                  if (value === "__add__") {
+                    const input = window.prompt("Nuevo ejercicio (año de 4 dígitos):");
+                    if (input) addFiscalYear(input);
+                  } else {
+                    chooseFiscalYear(value);
+                  }
+                }}
+                sx={{ color: "inherit", ".MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.5)" } }}
+              >
+                {availableYears.map((year) => (
+                  <MenuItem key={year} value={year}>
+                    {year}
+                  </MenuItem>
+                ))}
+                <MenuItem value="__add__">Añadir ejercicio…</MenuItem>
+              </Select>
+            </FormControl>
+          )}
           <Button color="inherit" onClick={toggle}>
             {mode === "dark" ? "Claro" : "Oscuro"}
           </Button>
@@ -89,27 +175,32 @@ export default function HomePage() {
                 <Typography><strong>Nombre:</strong> {company.name}</Typography>
                 <Typography><strong>NIF/CIF:</strong> {company.tax_id}</Typography>
                 <Typography><strong>Dirección:</strong> {company.address}</Typography>
-                <Typography><strong>Periodo fiscal:</strong> {company.fiscal_year}</Typography>
+                <Typography><strong>Periodo fiscal configurado:</strong> {company.fiscal_year}</Typography>
+                {selectedYear && (
+                  <Typography><strong>Ejercicio activo:</strong> {selectedYear}</Typography>
+                )}
               </Box>
             ) : (
               <CompanyForm onSaved={setCompany} />
             )}
           </Paper>
         )}
-        <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
-          <Button variant="contained" href="/accounts">
-            Plan de cuentas
-          </Button>
-          <Button variant="contained" href="/journal">
-            Libro diario
-          </Button>
-          <Button variant="contained" href="/invoices">
-            Facturas emitidas
-          </Button>
-          <Button variant="contained" href="/received-invoices">
-            Facturas recibidas
-          </Button>
-        </Box>
+        {company && (
+          <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
+            <Button variant="contained" href="/accounts">
+              Plan de cuentas
+            </Button>
+            <Button variant="contained" href="/journal">
+              Libro diario
+            </Button>
+            <Button variant="contained" href="/invoices">
+              Facturas emitidas
+            </Button>
+            <Button variant="contained" href="/received-invoices">
+              Facturas recibidas
+            </Button>
+          </Box>
+        )}
       </Container>
     </>
   );
