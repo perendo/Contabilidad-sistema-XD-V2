@@ -194,3 +194,153 @@ def test_list_documents_of_entry_without_attachments_returns_empty(client):
     response = client.get(f"/journal-entries/{entry_id}/documents", headers=headers)
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_delete_scoped_document_removes_it(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    entry = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento con documento",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = entry["id"]
+
+    uploaded = client.post(
+        f"/journal-entries/{entry_id}/documents",
+        files={"file": ("test.txt", b"hello world", "text/plain")},
+        headers=headers,
+    ).json()
+    doc_id = uploaded["id"]
+
+    response = client.delete(
+        f"/journal-entries/{entry_id}/documents/{doc_id}", headers=headers
+    )
+    assert response.status_code == 204
+
+    listing = client.get(f"/journal-entries/{entry_id}/documents", headers=headers)
+    assert listing.status_code == 200
+    assert listing.json() == []
+
+    download = client.get(
+        f"/journal-entries/{entry_id}/documents/{doc_id}/download", headers=headers
+    )
+    assert download.status_code == 404
+
+
+def test_delete_direct_document_by_id_removes_it(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    entry = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento con documento",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = entry["id"]
+
+    uploaded = client.post(
+        f"/journal-entries/{entry_id}/documents",
+        files={"file": ("test.txt", b"hello world", "text/plain")},
+        headers=headers,
+    ).json()
+    doc_id = uploaded["id"]
+
+    response = client.delete(f"/documents/{doc_id}", headers=headers)
+    assert response.status_code == 204
+
+    download = client.get(f"/documents/{doc_id}", headers=headers)
+    assert download.status_code == 404
+
+
+def test_delete_unknown_document_returns_404(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.delete("/documents/999999", headers=headers)
+    assert response.status_code == 404
+
+    response_scoped = client.delete(
+        "/journal-entries/1/documents/999999", headers=headers
+    )
+    assert response_scoped.status_code == 404
+
+
+def test_delete_document_twice_returns_404_on_second(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1},
+        headers=headers,
+    ).json()
+
+    entry = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento con documento",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = entry["id"]
+
+    uploaded = client.post(
+        f"/journal-entries/{entry_id}/documents",
+        files={"file": ("test.txt", b"hello world", "text/plain")},
+        headers=headers,
+    ).json()
+    doc_id = uploaded["id"]
+
+    first = client.delete(f"/documents/{doc_id}", headers=headers)
+    assert first.status_code == 204
+
+    second = client.delete(f"/documents/{doc_id}", headers=headers)
+    assert second.status_code == 404

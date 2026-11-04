@@ -139,6 +139,29 @@ def _download_direct(
     return _download_response(doc)
 
 
+def _delete_scoped(
+    entry_id: int,
+    document_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = _get_document(db, document_id, entry_id)
+    db.delete(doc)
+    db.commit()
+    return None
+
+
+def _delete_direct(
+    document_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = _get_document(db, document_id)
+    db.delete(doc)
+    db.commit()
+    return None
+
+
 def _list(
     entry_id: int,
     _: User = Depends(get_current_user),
@@ -178,9 +201,15 @@ for _base in ("/journal-entries", "/entries", "/asientos"):
         router.get(f"{_base}/{{entry_id}}/{_suffix}/{{document_id}}")(_download_scoped)
         router.get(f"{_base}/{{entry_id}}/{_suffix}/{{document_id}}/download")(_download_scoped)
         router.get(f"{_base}/{{entry_id}}/{_suffix}/{{document_id}}/descargar")(_download_scoped)
+    for _suffix in _UPLOAD_SUFFIXES:
+        router.delete(
+            f"{_base}/{{entry_id}}/{_suffix}/{{document_id}}",
+            status_code=status.HTTP_204_NO_CONTENT,
+        )(_delete_scoped)
 
 # direct by document id
 for _base in ("/documents", "/documentos", "/attachments", "/adjuntos", "/files", "/file", "/fichero", "/archivo", "/upload"):
     router.get(f"{_base}/{{document_id}}")(_download_direct)
     router.get(f"{_base}/{{document_id}}/download")(_download_direct)
     router.get(f"{_base}/{{document_id}}/descargar")(_download_direct)
+    router.delete(f"{_base}/{{document_id}}", status_code=status.HTTP_204_NO_CONTENT)(_delete_direct)
