@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -17,12 +17,19 @@ import {
   CircularProgress,
 } from "@mui/material";
 
+type PygResult = {
+  total_ingresos: number;
+  total_gastos: number;
+  resultado: number;
+  tipo_resultado: string;
+};
+
 export default function PygPage() {
   const router = useRouter();
   const { mode, toggle } = useThemeMode();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<PygResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,8 +45,8 @@ export default function PygPage() {
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
       setResult(await api(`/cuenta-perdidas-ganancias?${params.toString()}`));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -45,6 +45,9 @@ export default function Modelo347Page() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // El año actual se calcula tras el montaje: `new Date()` no es estable
+    // durante el prerender de Next.js.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setYear(String(new Date().getFullYear()));
     if (!isAuthenticated()) router.push("/login");
   }, [router]);
@@ -55,8 +58,8 @@ export default function Modelo347Page() {
     try {
       const params = new URLSearchParams({ year, threshold });
       setResult(await api(`/modelo-347?${params.toString()}`));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }

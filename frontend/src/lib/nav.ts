@@ -8,7 +8,8 @@ export type NavIcon =
   | "receipt"
   | "shield"
   | "users"
-  | "download";
+  | "download"
+  | "upload";
 
 export type NavItem = {
   label: string;
@@ -19,6 +20,7 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Plan Contable PGC", href: "/accounts", icon: "book" },
   { label: "Libro Diario", href: "/journal", icon: "list" },
+  { label: "Importar Banco", href: "/bank-imports", icon: "upload" },
   { label: "Facturas Emitidas", href: "/invoices", icon: "up" },
   { label: "Facturas Recibidas", href: "/received-invoices", icon: "down" },
   { label: "Balance Sumas y Saldos", href: "/reports/balance", icon: "scale" },

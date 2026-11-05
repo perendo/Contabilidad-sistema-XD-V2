@@ -39,6 +39,16 @@ class Account(Base):
     children: Mapped[list["Account"]] = relationship("Account", back_populates="parent")
 
 
+class BankIbanAccount(Base):
+    __tablename__ = "bank_iban_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    iban: Mapped[str] = mapped_column(String(34), unique=True, index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+
+    account: Mapped["Account"] = relationship("Account")
+
+
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
 

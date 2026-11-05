@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, formatEuro, parseAmount } from "@/lib/format";
 import {
   AppBar,
@@ -87,6 +87,9 @@ export default function ReceivedInvoicesPage() {
       router.push("/login");
       return;
     }
+    // La fecha actual se calcula tras el montaje: `new Date()` no es estable
+    // durante el prerender de Next.js.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm((prev) => ({
       ...prev,
       date: new Date().toLocaleDateString("sv-SE"),
@@ -106,8 +109,8 @@ export default function ReceivedInvoicesPage() {
         accounts.filter((a: Account) => a.type === "Gasto" && a.is_detail)
       );
       setInvoices(invs);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -138,8 +141,8 @@ export default function ReceivedInvoicesPage() {
       });
       setForm({ ...emptyForm(), date: form.date });
       load();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err));
     } finally {
       setSubmitting(false);
     }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { API_BASE, isAuthenticated, clearSession } from "@/lib/api";
+import { API_BASE, isAuthenticated, clearSession, errorMessage } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -62,8 +62,8 @@ export default function ExportPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setError(e.message || "Error al exportar");
+    } catch (e) {
+      setError(errorMessage(e, "Error al exportar"));
     } finally {
       setLoading(false);
     }

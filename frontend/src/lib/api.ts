@@ -3,6 +3,14 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:800
 const AUTH_COOKIE = "auth_session";
 
 /**
+ * Normaliza cualquier error capturado a un mensaje legible.
+ */
+export function errorMessage(error: unknown, fallback = "Error"): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+/**
  * Comprueba si existe la sesión mediante una cookie marcador no sensible.
  * El JWT real vive en una cookie HttpOnly que JavaScript no puede leer.
  */

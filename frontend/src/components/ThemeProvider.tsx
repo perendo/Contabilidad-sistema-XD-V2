@@ -40,6 +40,11 @@ export default function AppThemeProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     const stored = localStorage.getItem("theme-mode");
+    // Se aplica después del montaje para que el HTML generado en el servidor
+    // (tema oscuro por defecto) coincida con el primer render del cliente y no
+    // se produzca un desajuste de hidratación. Es una sincronización puntual
+    // con un almacén externo, no un estado derivado durante el render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored === "light" || stored === "dark") setMode(stored);
   }, []);
 

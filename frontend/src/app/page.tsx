@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { NAV_ITEMS, type NavIcon } from "@/lib/nav";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -16,6 +16,7 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import ShieldIcon from "@mui/icons-material/Shield";
 import PeopleIcon from "@mui/icons-material/People";
 import DownloadIcon from "@mui/icons-material/Download";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import type { SvgIconComponent } from "@mui/icons-material";
 import {
   AppBar,
@@ -45,27 +46,41 @@ const NAV_ICONS: Record<NavIcon, SvgIconComponent> = {
   shield: ShieldIcon,
   users: PeopleIcon,
   download: DownloadIcon,
+  upload: UploadFileIcon,
+};
+
+type User = {
+  email: string;
+};
+
+type Company = {
+  name: string;
+  tax_id: string;
+  address: string;
+  fiscal_year: string | number;
 };
 
 export default function HomePage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [company, setCompany] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState<string | null>(null);
-  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem("fiscal_year_selected");
+  });
+  const [availableYears, setAvailableYears] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = sessionStorage.getItem("fiscal_years_available");
+      return stored ? (JSON.parse(stored) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const { mode, toggle } = useThemeMode();
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setSelectedYear(sessionStorage.getItem("fiscal_year_selected"));
-      try {
-        const stored = sessionStorage.getItem("fiscal_years_available");
-        if (stored) setAvailableYears(JSON.parse(stored));
-      } catch {
-        setAvailableYears([]);
-      }
-    }
     if (!isAuthenticated()) {
       router.push("/login");
       return;
@@ -244,7 +259,7 @@ export default function HomePage() {
   );
 }
 
-function CompanyForm({ onSaved }: { onSaved: (c: any) => void }) {
+function CompanyForm({ onSaved }: { onSaved: (c: Company) => void }) {
   const [form, setForm] = useState({
     name: "",
     tax_id: "",
@@ -264,8 +279,8 @@ function CompanyForm({ onSaved }: { onSaved: (c: any) => void }) {
         body: JSON.stringify(form),
       });
       onSaved(c);
-    } catch (err: any) {
-      setError(err.message || "Error");
+    } catch (err) {
+      setError(errorMessage(err));
     } finally {
       setLoading(false);
     }

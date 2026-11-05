@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -66,8 +66,8 @@ export default function AccountsPage() {
     try {
       const data = await api(`/accounts${q ? `?search=${encodeURIComponent(q)}` : ""}`);
       setAccounts(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -93,8 +93,8 @@ export default function AccountsPage() {
       });
       setForm({ code: "", name: "", type: "Activo", level: 1, is_detail: false, parent_id: "" });
       load(search);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 

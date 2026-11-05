@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -52,8 +52,8 @@ export default function BalancePage() {
       setTotalDebe(data.total_debe);
       setTotalHaber(data.total_haber);
       setCuadrado(data.cuadrado);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { isAuthenticated, clearSession, api } from "@/lib/api";
+import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, parseAmount } from "@/lib/format";
 import {
   AppBar,
@@ -72,17 +72,20 @@ export default function JournalPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     date: "",
     description: "",
     lines: [emptyLine(), emptyLine()],
-  });
+  }));
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
+    // La fecha actual se calcula tras el montaje: `new Date()` no es estable
+    // durante el prerender de Next.js.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm((prev) => ({ ...prev, date: new Date().toISOString().slice(0, 10) }));
     load();
   }, [router]);
@@ -92,8 +95,8 @@ export default function JournalPage() {
       const [accs, ents] = await Promise.all([api("/accounts"), api("/journal-entries")]);
       setAccounts(accs);
       setEntries(ents);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -132,8 +135,8 @@ export default function JournalPage() {
       setForm({ date: "", description: "", lines: [emptyLine(), emptyLine()] });
       setForm((prev) => ({ ...prev, date: new Date().toISOString().slice(0, 10) }));
       load();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 

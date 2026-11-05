@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { api } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import {
   Box,
   Button,
@@ -37,8 +37,8 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       router.push("/");
-    } catch (err: any) {
-      setError(err.message || "Error de autenticación");
+    } catch (err) {
+      setError(errorMessage(err, "Error de autenticación"));
     } finally {
       setLoading(false);
     }
