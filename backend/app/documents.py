@@ -7,6 +7,12 @@ from sqlalchemy.orm import Session
 
 from .auth import get_current_user
 from .database import get_db
+from .document_storage import (
+    build_file_path,
+    delete_document,
+    read_document,
+    write_document,
+)
 from .models import Document, JournalEntry, User
 
 router = APIRouter(tags=["documents"])
@@ -52,9 +58,9 @@ def _content_disposition(filename: str) -> str:
     return f'attachment; filename="{safe}"; filename*=UTF-8\'\'{quote(filename, safe="")}'
 
 
-def _download_response(doc: Document) -> Response:
+def _download_response(doc: Document, content: bytes) -> Response:
     return Response(
-        content=doc.content,
+        content=content,
         media_type=doc.content_type or "application/octet-stream",
         headers={"Content-Disposition": _content_disposition(doc.filename)},
     )
@@ -99,15 +105,24 @@ async def upload_attachment(
         chunks.append(chunk)
 
     content = b"".join(chunks)
+    file_path = build_file_path(
+        db, entry, file.filename or "document", content_type
+    )
+    write_document(file_path, content)
     doc = Document(
         entry_id=entry_id,
         filename=(file.filename or "document")[:255],
         content_type=content_type,
         size=len(content),
-        content=content,
+        file_path=file_path,
     )
     db.add(doc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        delete_document(file_path)
+        raise
     db.refresh(doc)
     return doc
 
@@ -140,7 +155,14 @@ def download_attachment(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    return _download_response(_get_document(db, attachment_id))
+    doc = _get_document(db, attachment_id)
+    try:
+        content = read_document(doc.file_path)
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento no existe"
+        ) from None
+    return _download_response(doc, content)
 
 
 @router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -150,5 +172,10 @@ def delete_attachment(
     db: Session = Depends(get_db),
 ) -> None:
     doc = _get_document(db, attachment_id)
+    file_path = doc.file_path
     db.delete(doc)
     db.commit()
+    try:
+        delete_document(file_path)
+    except (OSError, ValueError):
+        pass

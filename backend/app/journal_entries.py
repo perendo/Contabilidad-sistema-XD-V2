@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .auth import get_current_user
 from .database import get_db
+from .document_storage import move_document
 from .models import Account, JournalEntry, JournalLine, User
 
 router = APIRouter(tags=["journal-entries"])
@@ -168,8 +169,12 @@ def update_entry(
     # ignore status changes via update; keep draft
     body.status = None
     _validate(body, db)
+    previous_year = entry.date.year
     entry.date = body.date
     entry.description = body.description
+    if entry.date.year != previous_year:
+        for doc in entry.documents:
+            doc.file_path = move_document(doc, entry, db)
     # replace lines
     for line in list(entry.lines):
         db.delete(line)

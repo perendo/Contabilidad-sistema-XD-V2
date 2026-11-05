@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_DOCUMENTS_DIR = Path(__file__).resolve().parents[2] / "Data"
 
 
 class Settings(BaseSettings):
@@ -17,6 +21,7 @@ class Settings(BaseSettings):
     cookie_secure: bool | None = None
     cookie_samesite: str = "lax"
     cookie_domain: str | None = None
+    documents_dir: Path = DEFAULT_DOCUMENTS_DIR
 
 
 settings = Settings()

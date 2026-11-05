@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import Date, ForeignKey, LargeBinary, Numeric, String, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -62,7 +62,7 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(255), default="application/octet-stream")
     size: Mapped[int] = mapped_column(default=0)
-    content: Mapped[bytes] = mapped_column(LargeBinary)
+    file_path: Mapped[str] = mapped_column(String(500))
 
     entry: Mapped["JournalEntry"] = relationship("JournalEntry", back_populates="documents")
 

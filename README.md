@@ -27,7 +27,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES=1440
 SEED_EMAIL=admin@example.com
 SEED_PASSWORD=adminpass
 CORS_ORIGINS=http://localhost:3000
+DOCUMENTS_DIR=H:/Contabilidad-sistema-XD-V2/Data
 ```
+
+`DOCUMENTS_DIR` es opcional: si no se define, se usa `Data/` en la raíz del repositorio. En despliegues conviene indicar una ruta absoluta a un volumen persistente.
 
 2. Instalar dependencias:
 
@@ -65,6 +68,23 @@ npm run dev
 ```
 
 Frontend disponible en `http://localhost:3000`. Configurar `NEXT_PUBLIC_API_URL` si el backend no está en `http://localhost:8000`.
+
+## Documentos adjuntos
+
+Los adjuntos de los asientos se guardan como ficheros, fuera de la base de datos:
+
+```
+Data/
+  <nombre-Empresa>/
+    <año-del-asiento>/
+      <nombre-generado>.<ext>
+```
+
+- En disco se usa un nombre generado; el nombre original se conserva en la base de datos para la descarga.
+- `DOCUMENTS_DIR` permite cambiar la raíz (por defecto, `Data/` en la raíz del repositorio).
+- `Data/` no se versiona (`.gitignore`). En contenedores debe montarse como volumen persistente.
+- La copia de seguridad debe incluir la base de datos y `Data/`; por separado no permiten restaurar los adjuntos.
+- `alembic upgrade head` traslada automáticamente los documentos existentes que aún estén en la base de datos y requiere permisos de escritura sobre `Data/`. El downgrade los devuelve a la base de datos sin borrar los ficheros.
 
 ## Tests
 

@@ -33,7 +33,8 @@ def _seed_user():
 
 
 @pytest.fixture(autouse=True)
-def reset_db():
+def reset_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "documents_dir", tmp_path / "Data")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     _seed_user()
