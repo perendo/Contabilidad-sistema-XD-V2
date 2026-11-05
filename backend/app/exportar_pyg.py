@@ -78,13 +78,15 @@ def _csv_export(data):
     writer.writerow(["Total ingresos", data["total_ingresos"]])
     writer.writerow(["Total gastos", data["total_gastos"]])
     writer.writerow(["Resultado", data["resultado"]])
-    writer.writerow(["Tipo resultado", data["tipo_resultado"]])
+    writer.writerow(["Tipo resultado", _sanitize_cell(data["tipo_resultado"])])
     return buf.getvalue().encode("utf-8")
 
 
 def _pdf_export(data):
     from fpdf import FPDF
+    from datetime import datetime
     pdf = FPDF()
+    pdf.set_creation_date(datetime(2020, 1, 1))
     pdf.add_page()
     pdf.set_font("Helvetica", size=10)
     pdf.cell(0, 10, "Cuenta de pérdidas y ganancias", ln=True, align="C")
@@ -99,7 +101,10 @@ def _pdf_export(data):
 
 def _xlsx_export(data):
     from openpyxl import Workbook
+    from datetime import datetime
     wb = Workbook()
+    wb.properties.created = datetime(2020, 1, 1)
+    wb.properties.modified = datetime(2020, 1, 1)
     ws = wb.active
     ws.title = "PyG"
     ws.append(["Cuenta de pérdidas y ganancias"])
@@ -109,7 +114,7 @@ def _xlsx_export(data):
     ws.append(["Total ingresos", data["total_ingresos"]])
     ws.append(["Total gastos", data["total_gastos"]])
     ws.append(["Resultado", data["resultado"]])
-    ws.append(["Tipo resultado", data["tipo_resultado"]])
+    ws.append(["Tipo resultado", _sanitize_cell(data["tipo_resultado"])])
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -119,15 +124,15 @@ def _respond(data, format, filename):
     if format == "csv":
         content = _csv_export(data)
         return Response(content=content, media_type="text/csv; charset=utf-8",
-                       headers={"Content-Disposition": f"attachment; filename={filename}.csv"})
+                       headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
     if format == "pdf":
         content = _pdf_export(data)
         return Response(content=content, media_type="application/pdf",
-                       headers={"Content-Disposition": f"attachment; filename={filename}.pdf"})
+                       headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'})
     if format == "xlsx":
         content = _xlsx_export(data)
         return Response(content=content, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                       headers={"Content-Disposition": f"attachment; filename={filename}.xlsx"})
+                       headers={"Content-Disposition": f'attachment; filename="{filename}.xlsx"'})
     return Response(status_code=status.HTTP_400_BAD_REQUEST, content="Formato no soportado")
 
 

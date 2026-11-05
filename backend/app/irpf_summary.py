@@ -47,8 +47,9 @@ def irpf_summary(
 ) -> IRPFSummaryOut:
     start_month, end_month = QUARTER_MONTHS[quarter]
     date_from = date(year, start_month, 1)
+    import calendar
     if end_month == 2:
-        date_to = date(year, end_month, 28)
+        date_to = date(year, end_month, calendar.monthrange(year, end_month)[1])
     elif end_month in (4, 6, 9, 11):
         date_to = date(year, end_month, 30)
     else:

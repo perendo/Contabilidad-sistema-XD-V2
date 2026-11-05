@@ -73,7 +73,9 @@ def _csv_export(rows, total_debe, total_haber, date_from, date_to):
 def _pdf_export(rows, total_debe, total_haber, date_from, date_to):
     from fpdf import FPDF
 
+    from datetime import datetime
     pdf = FPDF()
+    pdf.set_creation_date(datetime(2020, 1, 1))
     pdf.add_page()
     pdf.set_font("Helvetica", size=10)
     pdf.cell(0, 10, "Balance de sumas y saldos", ln=True, align="C")
@@ -107,7 +109,10 @@ def _pdf_export(rows, total_debe, total_haber, date_from, date_to):
 def _xlsx_export(rows, total_debe, total_haber, date_from, date_to):
     from openpyxl import Workbook
 
+    from datetime import datetime
     wb = Workbook()
+    wb.properties.created = datetime(2020, 1, 1)
+    wb.properties.modified = datetime(2020, 1, 1)
     ws = wb.active
     ws.title = "Balance"
 
@@ -139,21 +144,21 @@ def exportar_balance(
         return Response(
             content=content,
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": "attachment; filename=balance.csv"},
+            headers={"Content-Disposition": 'attachment; filename="balance.csv"'},
         )
     if format == "pdf":
         content = _pdf_export(rows, total_debe, total_haber, date_from, date_to)
         return Response(
             content=content,
             media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=balance.pdf"},
+            headers={"Content-Disposition": 'attachment; filename="balance.pdf"'},
         )
     if format == "xlsx":
         content = _xlsx_export(rows, total_debe, total_haber, date_from, date_to)
         return Response(
             content=content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": "attachment; filename=balance.xlsx"},
+            headers={"Content-Disposition": 'attachment; filename="balance.xlsx"'},
         )
 
     return Response(status_code=status.HTTP_400_BAD_REQUEST, content="Formato no soportado")

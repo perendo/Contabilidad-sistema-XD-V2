@@ -25,8 +25,9 @@ def _sanitize_cell(val):
 def _compute_irpf(db: Session, year: int, quarter: int):
     start_month, end_month = QUARTER_MONTHS[quarter]
     date_from = date(year, start_month, 1)
+    import calendar
     if end_month == 2:
-        date_to = date(year, end_month, 28)
+        date_to = date(year, end_month, calendar.monthrange(year, end_month)[1])
     elif end_month in (4, 6, 9, 11):
         date_to = date(year, end_month, 30)
     else:
@@ -80,7 +81,9 @@ def _csv_export(data):
 
 def _pdf_export(data):
     from fpdf import FPDF
+    from datetime import datetime
     pdf = FPDF()
+    pdf.set_creation_date(datetime(2020, 1, 1))
     pdf.add_page()
     pdf.set_font("Helvetica", size=10)
     pdf.cell(0, 10, "Resumen IRPF", ln=True, align="C")
@@ -100,7 +103,10 @@ def _pdf_export(data):
 
 def _xlsx_export(data):
     from openpyxl import Workbook
+    from datetime import datetime
     wb = Workbook()
+    wb.properties.created = datetime(2020, 1, 1)
+    wb.properties.modified = datetime(2020, 1, 1)
     ws = wb.active
     ws.title = "IRPF"
     ws.append(["Resumen IRPF"])
@@ -124,15 +130,15 @@ def _respond(data, format, filename):
     if format == "csv":
         content = _csv_export(data)
         return Response(content=content, media_type="text/csv; charset=utf-8",
-                       headers={"Content-Disposition": f"attachment; filename={filename}.csv"})
+                       headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
     if format == "pdf":
         content = _pdf_export(data)
         return Response(content=content, media_type="application/pdf",
-                       headers={"Content-Disposition": f"attachment; filename={filename}.pdf"})
+                       headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'})
     if format == "xlsx":
         content = _xlsx_export(data)
         return Response(content=content, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                       headers={"Content-Disposition": f"attachment; filename={filename}.xlsx"})
+                       headers={"Content-Disposition": f'attachment; filename="{filename}.xlsx"'})
     return Response(status_code=status.HTTP_400_BAD_REQUEST, content="Formato no soportado")
 
 
