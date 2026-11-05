@@ -428,6 +428,158 @@ def test_accept_non_draft_entry_returns_400(client):
     assert client.post(f"/journal-entries/{draft['id']}/accept", headers=headers).status_code == 400
 
 
+def test_correct_accepted_entry_creates_linked_accepted_entry(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    original = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento original",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    original_id = original["id"]
+    assert original["status"] == "accepted"
+
+    correction = client.post(
+        f"/journal-entries/{original_id}/correct",
+        json={
+            "date": "2026-01-16",
+            "description": "Corrección",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 5, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 5},
+            ],
+        },
+        headers=headers,
+    )
+    assert correction.status_code == 201
+    data = correction.json()
+    assert data["status"] == "accepted"
+    assert data["correction_of_entry_id"] == original_id
+    assert data["corrects_entry_id"] == original_id
+    assert data["original_entry_id"] == original_id
+
+    # original unchanged
+    orig_after = client.get("/journal-entries", headers=headers).json()
+    match = [e for e in orig_after if e["id"] == original_id][0]
+    assert match["status"] == "accepted"
+    assert match["description"] == "Asiento original"
+
+
+def test_correct_non_accepted_entry_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    line_payload = [
+        {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+        {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+    ]
+
+    # borrador
+    draft = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Borrador", "status": "draft", "lines": line_payload},
+        headers=headers,
+    ).json()
+    assert client.post(
+        f"/journal-entries/{draft['id']}/correct",
+        json={"date": "2026-01-16", "description": "Corrección", "lines": line_payload},
+        headers=headers,
+    ).status_code == 400
+
+    # anulado
+    annulled = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "A anular", "status": "draft", "lines": line_payload},
+        headers=headers,
+    ).json()
+    client.post(f"/journal-entries/{annulled['id']}/annul", headers=headers)
+    assert client.post(
+        f"/journal-entries/{annulled['id']}/correct",
+        json={"date": "2026-01-16", "description": "Corrección", "lines": line_payload},
+        headers=headers,
+    ).status_code == 400
+
+
+def test_correct_with_unbalanced_lines_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    original = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Original",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+
+    before = client.get("/journal-entries", headers=headers).json()
+    before_ids = {e["id"] for e in before}
+
+    response = client.post(
+        f"/journal-entries/{original['id']}/correct",
+        json={
+            "date": "2026-01-16",
+            "description": "Corrección mala",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 5},
+            ],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    after = client.get("/journal-entries", headers=headers).json()
+    after_ids = {e["id"] for e in after}
+    assert after_ids == before_ids
+
+
 def test_review_draft_entry_sets_reviewed_flag(client):
     token = _login(client)
     headers = {"Authorization": f"Bearer {token}"}

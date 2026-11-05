@@ -43,6 +43,9 @@ class JournalEntryOut(BaseModel):
     description: str
     status: str
     reviewed: bool
+    correction_of_entry_id: int | None = None
+    corrects_entry_id: int | None = None
+    original_entry_id: int | None = None
     lines: list[JournalLineOut]
     model_config = ConfigDict(from_attributes=True)
 
@@ -282,6 +285,50 @@ def accept_entry(
             status_code=status.HTTP_400_BAD_REQUEST, detail="El asiento no cuadra"
         )
     entry.status = "accepted"
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@router.post("/journal-entries/{entry_id}/correct", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/entries/{entry_id}/correct", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/asientos/{entry_id}/correct", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/journal-entries/{entry_id}/corregir", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/entries/{entry_id}/corregir", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+@router.post("/asientos/{entry_id}/corregir", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
+def correct_entry(
+    entry_id: int,
+    body: JournalEntryIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JournalEntry:
+    original = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    if original is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
+    if original.status != "accepted":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden corregir asientos aceptados",
+        )
+    _validate(body, db)
+    entry = JournalEntry(
+        date=body.date,
+        description=body.description,
+        status="accepted",
+        correction_of_entry_id=original.id,
+    )
+    db.add(entry)
+    db.flush()
+    for line in body.lines:
+        db.add(
+            JournalLine(
+                entry_id=entry.id,
+                account_id=line.account_id,
+                description=line.description,
+                debit=line.debit,
+                credit=line.credit,
+            )
+        )
     db.commit()
     db.refresh(entry)
     return entry

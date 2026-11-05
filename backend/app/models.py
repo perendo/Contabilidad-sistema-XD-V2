@@ -57,6 +57,17 @@ class JournalEntry(Base):
     description: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(20), default="accepted")
     reviewed: Mapped[bool] = mapped_column(default=False, nullable=False)
+    correction_of_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("journal_entries.id"), nullable=True
+    )
+
+    @property
+    def corrects_entry_id(self) -> int | None:
+        return self.correction_of_entry_id
+
+    @property
+    def original_entry_id(self) -> int | None:
+        return self.correction_of_entry_id
     lines: Mapped[list["JournalLine"]] = relationship(
         "JournalLine", back_populates="entry", cascade="all, delete-orphan"
     )
