@@ -1,7 +1,12 @@
 from datetime import date as DateType
 from decimal import Decimal, ROUND_HALF_UP
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime as DateTime
+from io import BytesIO
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -9,8 +14,9 @@ from sqlalchemy.orm import Session
 from .auth import get_current_user
 from .database import get_db
 from .invoices import ALLOWED_VAT_RATES, CENT
+from .document_storage import build_file_path, write_document
 from .journal_entries import JournalLineIn, add_accepted_entry
-from .models import Account, ReceivedInvoice, ThirdParty, User
+from .models import Account, Document, ReceivedInvoice, ThirdParty, User
 
 router = APIRouter(tags=["received-invoices"])
 
@@ -92,7 +98,7 @@ def create_received_invoice(
         )
     if body.vat_rate not in ALLOWED_VAT_RATES:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no válido"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no vÃ¡lido"
         )
     vat_amount = (body.base_amount * body.vat_rate / 100).quantize(
         CENT, rounding=ROUND_HALF_UP
@@ -109,7 +115,7 @@ def create_received_invoice(
     if not supplier_number:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El número de factura del proveedor es obligatorio",
+            detail="El nÃºmero de factura del proveedor es obligatorio",
         )
     supplier = db.query(ThirdParty).filter(ThirdParty.id == body.third_party_id).first()
     if supplier is None:
@@ -124,7 +130,7 @@ def create_received_invoice(
     if expense_account is None or expense_account.type != "Gasto" or not expense_account.is_detail:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La cuenta de gasto no es válida",
+            detail="La cuenta de gasto no es vÃ¡lida",
         )
     vat_account = (
         db.query(Account)
@@ -158,12 +164,12 @@ def create_received_invoice(
         if retention_account is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cuenta de retención IRPF no encontrada",
+                detail="Cuenta de retenciÃ³n IRPF no encontrada",
             )
         lines.append(
             JournalLineIn(
                 account_id=retention_account.id,
-                description="Retención IRPF practicada",
+                description="RetenciÃ³n IRPF practicada",
                 credit=irpf_amount,
             )
         )
@@ -195,7 +201,7 @@ def create_received_invoice(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una factura recibida de ese proveedor con ese número",
+            detail="Ya existe una factura recibida de ese proveedor con ese nÃºmero",
         )
     db.refresh(invoice)
     return invoice
@@ -231,12 +237,12 @@ def pay_received_invoice(
     if invoice.status != "pendiente":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La factura ya está pagada o cobrada",
+            detail="La factura ya estÃ¡ pagada o cobrada",
         )
     if body.status.strip().lower() != "pagada":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Estado no válido para factura recibida",
+            detail="Estado no vÃ¡lido para factura recibida",
         )
 
     treasury_account = (
@@ -247,7 +253,7 @@ def pay_received_invoice(
     if treasury_account is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No existe una cuenta de tesorería",
+            detail="No existe una cuenta de tesorerÃ­a",
         )
 
     add_accepted_entry(
@@ -273,3 +279,277 @@ def pay_received_invoice(
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+FACTURAE_NS = "http://www.facturae.es/Facturae/2014/v3.2.1"
+
+
+def _text_first(root, tag_suffix):
+    for node in root.iter():
+        if node.tag.split("}")[-1] == tag_suffix and node.text and node.text.strip():
+            return node.text.strip()
+    return None
+
+
+def _parse_facturae(content):
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"XML invalido: {exc}")
+
+    seller_nif = None
+    for node in root.iter():
+        if node.tag.split("}")[-1] == "TaxIdentificationNumber":
+            if node.text and node.text.strip():
+                seller_nif = node.text.strip()
+                break
+    seller_name = None
+    for tag in ("CorporateName", "Name"):
+        val = _text_first(root, tag)
+        if val:
+            seller_name = val
+            break
+    invoice_number = _text_first(root, "InvoiceNumber")
+    issue_date_str = _text_first(root, "IssueDate")
+    total_amount = None
+    base_amount = None
+    for node in root.iter():
+        tag = node.tag.split("}")[-1]
+        if tag == "TotalAmount" and node.text and node.text.strip():
+            try:
+                total_amount = Decimal(node.text.strip())
+            except Exception:
+                pass
+        if tag == "TotalAmountBeforeTaxes" and node.text and node.text.strip():
+            try:
+                base_amount = Decimal(node.text.strip())
+            except Exception:
+                pass
+    vat_rate = None
+    vat_amount = None
+    for node in root.iter():
+        tag = node.tag.split("}")[-1]
+        if tag == "TaxRate" and node.text and node.text.strip():
+            try:
+                vat_rate = Decimal(node.text.strip())
+            except Exception:
+                pass
+    for node in root.iter():
+        if node.tag.split("}")[-1] == "TaxAmount":
+            for child in node.iter():
+                if child.tag.split("}")[-1] == "TotalAmount" and child.text and child.text.strip():
+                    try:
+                        vat_amount = Decimal(child.text.strip())
+                    except Exception:
+                        pass
+    if not seller_nif:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro el NIF del proveedor")
+    if not invoice_number:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro el numero de factura")
+    if not issue_date_str:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro la fecha de factura")
+    try:
+        parsed_date = DateTime.strptime(issue_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fecha de factura invalida")
+    if base_amount is None or base_amount <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Base imponible invalida")
+    if vat_rate is None:
+        vat_rate = Decimal("0")
+    if vat_rate not in ALLOWED_VAT_RATES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no valido")
+    if vat_amount is None:
+        vat_amount = (base_amount * vat_rate / 100).quantize(CENT, rounding=ROUND_HALF_UP)
+    if not seller_name:
+        seller_name = seller_nif
+    return {
+        "nif": seller_nif,
+        "name": seller_name,
+        "number": invoice_number,
+        "date": parsed_date,
+        "base": base_amount,
+        "vat_rate": vat_rate,
+        "vat_amount": vat_amount,
+    }
+
+
+def _next_supplier_account_code(db):
+    prefix = "4000"
+    existing = [a.code for a in db.query(Account).filter(Account.code.like(prefix + "%")).all()]
+    nums = []
+    for code in existing:
+        suffix = code[len(prefix):]
+        if suffix.isdigit():
+            nums.append(int(suffix))
+    next_num = (max(nums) + 1) if nums else 1
+    return f"{prefix}{next_num:04d}"
+
+
+def _get_or_create_supplier(db, nif, name):
+    supplier = db.query(ThirdParty).filter(ThirdParty.tax_id == nif).first()
+    if supplier is not None:
+        return supplier, False
+    code = _next_supplier_account_code(db)
+    parent = db.query(Account).filter(Account.code == "4000").first()
+    account = Account(code=code, name=name, type="Pasivo", level=4, is_detail=True, parent_id=parent.id if parent else None)
+    if parent is not None:
+        account.level = (parent.level or 0) + 1
+    db.add(account)
+    db.flush()
+    third = ThirdParty(account_id=account.id, name=name, tax_id=nif, type="Proveedor")
+    db.add(third)
+    db.flush()
+    return third, True
+
+
+def _extract_pdf_text(content):
+    from pdfminer.high_level import extract_text
+
+    try:
+        text = extract_text(BytesIO(content))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pudo leer el PDF: {exc}",
+        )
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo extraer texto del PDF",
+        )
+    return text
+
+
+def _parse_pdf_text(text):
+    def first(pattern):
+        match = re.search(pattern, text, re.IGNORECASE)
+        return match.group(1).strip() if match else None
+
+    nif = first(r"\bNIF\b[:\s]*([A-Z0-9][A-Z0-9\- ]{7,12})")
+    if not nif:
+        nif = first(r"\bCIF\b[:\s]*([A-Z0-9][A-Z0-9\- ]{7,12})")
+    name = first(r"Proveedor[:\s]*([^\n\r]+)")
+    if not name:
+        name = first(r"Raz[oó]n social[:\s]*([^\n\r]+)")
+    number = first(r"Factura[:\s]*([^\s\n\r]+)")
+    date_str = first(r"Fecha[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[/\-][0-9]{1,2}[/\-][0-9]{2,4})")
+    base_str = first(r"Base imponible[:\s]*([0-9.,]+)")
+    vat_str = first(r"IVA[^\n\r]*?([0-9]{1,2}(?:[.,][0-9]+)?)\s*%")
+    total_str = first(r"Total[:\s]*([0-9.,]+)")
+
+    if not nif:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro el NIF del proveedor")
+    if not number:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro el numero de factura")
+    if not date_str:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro la fecha de factura")
+    if not base_str:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro la base imponible")
+
+    def parse_decimal(value):
+        value = value.replace(" ", "")
+        if "," in value:
+            value = value.replace(".", "").replace(",", ".")
+        return Decimal(value)
+
+    try:
+        if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_str):
+            parsed_date = DateTime.strptime(date_str, "%Y-%m-%d").date()
+        else:
+            parsed_date = DateTime.strptime(date_str.replace("-", "/"), "%d/%m/%Y").date() if len(date_str.split("/")[-1]) == 4 else DateTime.strptime(date_str.replace("-", "/"), "%d/%m/%y").date()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fecha de factura invalida")
+    try:
+        base_amount = parse_decimal(base_str)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Base imponible invalida")
+    vat_rate = Decimal(vat_str.replace(",", ".")) if vat_str else Decimal("0")
+    if vat_rate not in ALLOWED_VAT_RATES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no valido")
+    return {
+        "nif": nif.replace(" ", ""),
+        "name": name,
+        "number": number,
+        "date": parsed_date,
+        "base": base_amount,
+        "vat_rate": vat_rate,
+    }
+
+
+def _create_from_extracted(data, content, filename, content_type, expense_account_id, db):
+    supplier, created = _get_or_create_supplier(db, data["nif"], data["name"])
+
+    if expense_account_id is None:
+        expense = db.query(Account).filter(Account.type == "Gasto", Account.is_detail == True).first()
+        if expense is None:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No existe cuenta de gasto")
+        expense_account_id = expense.id
+
+    body = ReceivedInvoiceIn(
+        date=data["date"],
+        third_party_id=supplier.id,
+        supplier_number=data["number"],
+        description="",
+        base_amount=data["base"],
+        vat_rate=data["vat_rate"],
+        expense_account_id=expense_account_id,
+    )
+    try:
+        invoice = create_received_invoice(body, None, db)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    from .models import JournalEntry as JE
+
+    je = db.query(JE).filter(JE.id == invoice.entry_id).first()
+    file_path = build_file_path(db, je, filename, content_type)
+    write_document(file_path, content)
+    doc = Document(entry_id=invoice.entry_id, filename=filename[:255], content_type=content_type, size=len(content), file_path=file_path)
+    db.add(doc)
+    db.commit()
+    db.refresh(invoice)
+
+    return {
+        "supplier_created": created,
+        "invoice": {
+            "id": invoice.id,
+            "date": invoice.date.isoformat(),
+            "third_party_id": invoice.third_party_id,
+            "supplier_number": invoice.supplier_number,
+            "description": invoice.description,
+            "base_amount": float(invoice.base_amount),
+            "vat_rate": float(invoice.vat_rate),
+            "vat_amount": float(invoice.vat_amount),
+            "total": float(invoice.total),
+            "irpf_rate": float(invoice.irpf_rate) if invoice.irpf_rate is not None else None,
+            "irpf_amount": float(invoice.irpf_amount) if invoice.irpf_amount is not None else None,
+            "expense_account_id": invoice.expense_account_id,
+            "entry_id": invoice.entry_id,
+            "status": invoice.status,
+        },
+    }
+
+
+@router.post("/received-invoices/import", status_code=status.HTTP_201_CREATED)
+def import_received_invoice(
+    file: UploadFile = File(...),
+    expense_account_id: int | None = Form(default=None),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    content = file.file.read()
+    filename = file.filename or "factura"
+    media_type = (file.content_type or "").lower()
+    is_pdf = filename.lower().endswith(".pdf") or media_type == "application/pdf"
+    if is_pdf:
+        data = _parse_pdf_text(_extract_pdf_text(content))
+        content_type = "application/pdf"
+    else:
+        data = _parse_facturae(content)
+        content_type = "application/xml"
+    return _create_from_extracted(data, content, filename, content_type, expense_account_id, db)

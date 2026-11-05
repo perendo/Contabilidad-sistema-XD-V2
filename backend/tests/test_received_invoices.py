@@ -47,6 +47,289 @@ def _setup_accounts_and_supplier(client, headers, include_vat_accounts=True):
     return accounts, supplier
 
 
+FACTURAE_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
+<fe:Facturae xmlns:fe="http://www.facturae.es/Facturae/2014/v3.2.1">
+  <FileHeader>
+    <SchemaVersion>3.2.1</SchemaVersion>
+    <Modality>I</Modality>
+    <InvoiceIssuerType>EM</InvoiceIssuerType>
+  </FileHeader>
+  <Parties>
+    <SellerParty>
+      <TaxIdentification>
+        <PersonTypeCode>J</PersonTypeCode>
+        <ResidenceTypeCode>R</ResidenceTypeCode>
+        <TaxIdentificationNumber>B12345678</TaxIdentificationNumber>
+      </TaxIdentification>
+      <LegalEntity>
+        <CorporateName>Proveedor Test SL</CorporateName>
+      </LegalEntity>
+    </SellerParty>
+    <BuyerParty>
+      <TaxIdentification>
+        <PersonTypeCode>J</PersonTypeCode>
+        <ResidenceTypeCode>R</ResidenceTypeCode>
+        <TaxIdentificationNumber>A87654321</TaxIdentificationNumber>
+      </TaxIdentification>
+      <LegalEntity>
+        <CorporateName>Empresa Compradora SL</CorporateName>
+      </LegalEntity>
+    </BuyerParty>
+  </Parties>
+  <Invoices>
+    <Invoice>
+      <InvoiceHeader>
+        <InvoiceNumber>F-001</InvoiceNumber>
+        <InvoiceDocumentType>FC</InvoiceDocumentType>
+        <InvoiceClass>OO</InvoiceClass>
+      </InvoiceHeader>
+      <InvoiceIssueData>
+        <IssueDate>2026-01-15</IssueDate>
+      </InvoiceIssueData>
+      <TaxesOutputs>
+        <Tax>
+          <TaxTypeCode>01</TaxTypeCode>
+          <TaxRate>21.00</TaxRate>
+          <TaxableBase>
+            <TotalAmount>100.00</TotalAmount>
+          </TaxableBase>
+          <TaxAmount>
+            <TotalAmount>21.00</TotalAmount>
+          </TaxAmount>
+        </Tax>
+      </TaxesOutputs>
+      <InvoiceTotals>
+        <TotalAmount>121.00</TotalAmount>
+        <TotalAmountBeforeTaxes>100.00</TotalAmountBeforeTaxes>
+        <TotalTaxOutputs>21.00</TotalTaxOutputs>
+      </InvoiceTotals>
+      <Items>
+        <InvoiceLine>
+          <ItemDescription>Servicio</ItemDescription>
+          <Quantity>1</Quantity>
+          <UnitPriceWithoutTax>100.00</UnitPriceWithoutTax>
+          <TotalCost>100.00</TotalCost>
+        </InvoiceLine>
+      </Items>
+    </Invoice>
+  </Invoices>
+</fe:Facturae>
+"""
+
+
+def test_import_received_invoice_from_facturae_xml_creates_invoice_entry_and_attachment(client):
+    # auth
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # need a gasto account and vat account
+    expense = client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("factura.xml", FACTURAE_SAMPLE.encode("utf-8"), "application/xml")},
+        data={"expense_account_id": str(expense["id"])},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["supplier_created"] is True
+    assert data["invoice"]["status"] == "pendiente"
+    assert data["invoice"]["base_amount"] == 100.0
+    assert data["invoice"]["vat_rate"] == 21.0
+
+    # entry accepted
+    entries = client.get("/journal-entries", headers=headers).json()
+    imported_entry = [e for e in entries if e["id"] == data["invoice"]["entry_id"]][0]
+    assert imported_entry["status"] == "accepted"
+
+    # attachment exists
+    atts = client.get(f"/journal-entries/{imported_entry['id']}/attachments", headers=headers).json()
+    assert len(atts) == 1
+
+
+def test_import_received_invoice_from_invalid_xml_returns_400(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+
+    before = client.get("/received-invoices", headers=headers).json()
+    before_ids = {i["id"] for i in before}
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("bad.xml", b"<foo><bar/></foo>", "application/xml")},
+        data={"expense_account_id": "1"},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    after = client.get("/received-invoices", headers=headers).json()
+    after_ids = {i["id"] for i in after}
+    assert after_ids == before_ids
+
+
+def test_import_received_invoice_reuses_existing_supplier(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    acc = client.post(
+        "/accounts",
+        json={"code": "4000", "name": "Proveedores", "type": "Pasivo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/third-parties",
+        json={"name": "Proveedor Existente", "tax_id": "B12345678", "type": "Proveedor", "account_id": acc["id"]},
+        headers=headers,
+    )
+
+    client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+
+    expense = client.get("/accounts", headers=headers).json()
+    expense_id = [a for a in expense if a["code"] == "6000"][0]["id"]
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("factura.xml", FACTURAE_SAMPLE.encode("utf-8"), "application/xml")},
+        data={"expense_account_id": str(expense_id)},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["supplier_created"] is False
+
+
+def _make_pdf(text):
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
+    for line in text.split("\n"):
+        pdf.cell(0, 10, line, ln=True)
+    return bytes(pdf.output())
+
+
+def test_import_received_invoice_from_pdf_creates_invoice_entry_and_attachment(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-001\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["supplier_created"] is True
+    assert data["invoice"]["base_amount"] == 100.0
+    assert data["invoice"]["vat_rate"] == 21.0
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    imported_entry = [e for e in entries if e["id"] == data["invoice"]["entry_id"]][0]
+    assert imported_entry["status"] == "accepted"
+
+    atts = client.get(f"/journal-entries/{imported_entry['id']}/attachments", headers=headers).json()
+    assert len(atts) == 1
+
+
+def test_import_received_invoice_from_pdf_without_text_returns_400(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf_bytes = bytes(pdf.output())
+
+    before = client.get("/received-invoices", headers=headers).json()
+    before_ids = {i["id"] for i in before}
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("vacio.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    after = client.get("/received-invoices", headers=headers).json()
+    after_ids = {i["id"] for i in after}
+    assert after_ids == before_ids
+
+
+def test_import_received_invoice_from_pdf_missing_data_returns_400(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    pdf_bytes = _make_pdf("Texto sin datos de factura\n")
+
+    before = client.get("/received-invoices", headers=headers).json()
+    before_ids = {i["id"] for i in before}
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("sin-datos.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    after = client.get("/received-invoices", headers=headers).json()
+    after_ids = {i["id"] for i in after}
+    assert after_ids == before_ids
+
+
 def test_received_invoice_generates_balanced_accepted_entry(client):
     token = _login(client)
     headers = {"Authorization": f"Bearer {token}"}
