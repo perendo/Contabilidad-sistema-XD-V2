@@ -56,7 +56,7 @@ class JournalEntry(Base):
     date: Mapped[date] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(20), default="accepted")
-    reviewed: Mapped[bool] = mapped_column(default=False)
+    reviewed: Mapped[bool] = mapped_column(default=False, nullable=False)
     lines: Mapped[list["JournalLine"]] = relationship(
         "JournalLine", back_populates="entry", cascade="all, delete-orphan"
     )

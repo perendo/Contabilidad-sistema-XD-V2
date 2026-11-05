@@ -25,7 +25,6 @@ class JournalEntryIn(BaseModel):
     date: DateType = Field(validation_alias=AliasChoices("date", "fecha"))
     description: str = Field(default="", validation_alias=AliasChoices("description", "concept", "concepto"))
     status: str | None = Field(default=None, validation_alias=AliasChoices("status", "estado"))
-    reviewed: bool | None = Field(default=None, validation_alias=AliasChoices("reviewed", "revisado"))
     lines: list[JournalLineIn] = Field(validation_alias=AliasChoices("lines", "lineas", "apuntes"))
 
 
@@ -49,11 +48,6 @@ class JournalEntryOut(BaseModel):
 
 
 ALLOWED_STATUSES = {"draft", "accepted"}
-
-
-class AcceptEntryIn(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    reviewed: bool | None = Field(default=None, validation_alias=AliasChoices("reviewed", "revisado"))
 
 
 def _validate(body: JournalEntryIn, db: Session) -> None:
@@ -118,8 +112,7 @@ def create_entry(
 ) -> JournalEntry:
     _validate(body, db)
     entry_status = body.status if body.status is not None else "accepted"
-    reviewed = body.reviewed if body.reviewed is not None else False
-    entry = JournalEntry(date=body.date, description=body.description, status=entry_status, reviewed=reviewed)
+    entry = JournalEntry(date=body.date, description=body.description, status=entry_status)
     db.add(entry)
     db.flush()
     for line in body.lines:
@@ -180,8 +173,6 @@ def update_entry(
     previous_year = entry.date.year
     entry.date = body.date
     entry.description = body.description
-    if body.reviewed is not None:
-        entry.reviewed = body.reviewed
     if entry.date.year != previous_year:
         for doc in entry.documents:
             doc.file_path = move_document(doc, entry, db)
@@ -207,6 +198,9 @@ def update_entry(
 @router.post("/journal-entries/{entry_id}/annul", response_model=JournalEntryOut)
 @router.post("/entries/{entry_id}/annul", response_model=JournalEntryOut)
 @router.post("/asientos/{entry_id}/annul", response_model=JournalEntryOut)
+@router.post("/journal-entries/{entry_id}/anular", response_model=JournalEntryOut)
+@router.post("/entries/{entry_id}/anular", response_model=JournalEntryOut)
+@router.post("/asientos/{entry_id}/anular", response_model=JournalEntryOut)
 def annul_entry(
     entry_id: int,
     _: User = Depends(get_current_user),
@@ -256,8 +250,6 @@ def review_entry(
 @router.post("/asientos/{entry_id}/aceptar", response_model=JournalEntryOut)
 def accept_entry(
     entry_id: int,
-    body: AcceptEntryIn | None = None,
-    reviewed: bool | None = Query(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> JournalEntry:
@@ -269,10 +261,6 @@ def accept_entry(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Solo se pueden aceptar asientos en borrador",
         )
-    if body is not None and body.reviewed is not None:
-        entry.reviewed = body.reviewed
-    if reviewed is not None:
-        entry.reviewed = reviewed
     if not entry.reviewed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
