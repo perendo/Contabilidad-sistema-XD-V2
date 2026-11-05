@@ -580,6 +580,87 @@ def test_correct_with_unbalanced_lines_returns_400(client):
     assert after_ids == before_ids
 
 
+def test_delete_draft_entry_removes_it(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Borrador a borrar",
+            "status": "draft",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+
+    response = client.delete(f"/journal-entries/{entry_id}", headers=headers)
+    assert response.status_code == 204
+
+    listing = client.get("/journal-entries", headers=headers).json()
+    assert entry_id not in {e["id"] for e in listing}
+
+
+def test_delete_non_draft_entry_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    line_payload = [
+        {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+        {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+    ]
+
+    # aceptado
+    accepted = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Aceptado", "lines": line_payload},
+        headers=headers,
+    ).json()
+    assert client.delete(f"/journal-entries/{accepted['id']}", headers=headers).status_code == 400
+
+    # anulado
+    draft = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Borrador", "status": "draft", "lines": line_payload},
+        headers=headers,
+    ).json()
+    client.post(f"/journal-entries/{draft['id']}/annul", headers=headers)
+    assert client.delete(f"/journal-entries/{draft['id']}", headers=headers).status_code == 400
+
+
+def test_delete_nonexistent_entry_returns_404(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.delete("/journal-entries/999999", headers=headers).status_code == 404
+
+
 def test_review_draft_entry_sets_reviewed_flag(client):
     token = _login(client)
     headers = {"Authorization": f"Bearer {token}"}

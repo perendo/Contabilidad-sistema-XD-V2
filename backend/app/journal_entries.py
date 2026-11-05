@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .auth import get_current_user
 from .database import get_db
-from .document_storage import move_document
+from .document_storage import delete_document, move_document
 from .models import Account, JournalEntry, JournalLine, User
 
 router = APIRouter(tags=["journal-entries"])
@@ -332,3 +332,35 @@ def correct_entry(
     db.commit()
     db.refresh(entry)
     return entry
+
+@router.delete("/journal-entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/asientos/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/journal-entries/{entry_id}/eliminar", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/entries/{entry_id}/eliminar", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/asientos/{entry_id}/eliminar", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/journal-entries/{entry_id}/borrar", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/entries/{entry_id}/borrar", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/asientos/{entry_id}/borrar", status_code=status.HTTP_204_NO_CONTENT)
+def delete_entry(
+    entry_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    if entry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
+    if entry.status != "draft":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden borrar asientos en borrador",
+        )
+    file_paths = [doc.file_path for doc in entry.documents]
+    db.delete(entry)
+    db.commit()
+    for file_path in file_paths:
+        try:
+            delete_document(file_path)
+        except (OSError, ValueError):
+            pass
+    return None
