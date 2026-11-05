@@ -14,6 +14,10 @@ from .libro_registro import router as libro_registro_router
 from .balance_sumas_saldos import router as balance_sumas_saldos_router
 from .bank_imports import router as bank_imports_router
 from .exportar_balance import router as exportar_balance_router
+from .exportar_iva import router as exportar_iva_router
+from .exportar_irpf import router as exportar_irpf_router
+from .exportar_modelo_347 import router as exportar_modelo_347_router
+from .exportar_pyg import router as exportar_pyg_router
 from .modelo_347 import router as modelo_347_router
 from .journal_entries import router as journal_entries_router
 from .received_invoices import router as received_invoices_router
@@ -48,6 +52,10 @@ app.include_router(libro_registro_router)
 app.include_router(balance_sumas_saldos_router)
 app.include_router(bank_imports_router)
 app.include_router(exportar_balance_router)
+app.include_router(exportar_iva_router)
+app.include_router(exportar_irpf_router)
+app.include_router(exportar_modelo_347_router)
+app.include_router(exportar_pyg_router)
 app.include_router(modelo_347_router)
 app.include_router(received_invoices_router)
 app.include_router(documents_router)
