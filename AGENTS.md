@@ -27,7 +27,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 16. [x] Como administrador, quiero adjuntar, listar y descargar documentos en un asiento del libro diario, para respaldar la operación y facilitar auditorías. Requiere: #2
 17. [x] Como administrador, quiero eliminar documentos adjuntos de un asiento, para corregir errores de carga. Requiere: #16
 18. [x] Como administrador, quiero importar un Excel de movimientos bancarios y vincular su IBAN a una subcuenta del PGC, para que cada movimiento quede como asiento en borrador listo para revisar. Requiere: #2
-19. [ ] Como administrador, quiero aceptar un asiento borrador solo si está cuadrado y revisado, para garantizar la corrección contable. Requiere: #18
+19. [x] Como administrador, quiero aceptar un asiento borrador solo si está cuadrado y revisado, para garantizar la corrección contable. Requiere: #18
 20. [ ] Como administrador, quiero corregir asientos aceptados mediante un apunte de corrección, para no alterar el histórico. Requiere: #19
 21. [ ] Como administrador, quiero que los asientos aceptados no se puedan borrar, para preservar la trazabilidad. Requiere: #19
 22. [ ] Como administrador, quiero importar facturas recibidas desde documento (PDF/XML) y extraer automáticamente los datos del proveedor para generar el asiento contable, para agilizar el registro de compras/gastos. Requiere: #5, #15, #16

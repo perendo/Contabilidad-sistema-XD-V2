@@ -282,6 +282,189 @@ def test_update_non_draft_entry_returns_400(client):
     assert updated.status_code == 400
 
 
+def test_review_non_draft_entry_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    line_payload = [
+        {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+        {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+    ]
+
+    accepted = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Aceptado", "lines": line_payload},
+        headers=headers,
+    ).json()
+    assert client.post(f"/journal-entries/{accepted['id']}/review", headers=headers).status_code == 400
+
+    draft = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Borrador", "status": "draft", "lines": line_payload},
+        headers=headers,
+    ).json()
+    client.post(f"/journal-entries/{draft['id']}/annul", headers=headers)
+    assert client.post(f"/journal-entries/{draft['id']}/review", headers=headers).status_code == 400
+
+
+def test_accept_reviewed_balanced_draft_sets_accepted(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Borrador aceptable",
+            "status": "draft",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+    client.post(f"/journal-entries/{entry_id}/review", headers=headers)
+
+    accepted = client.post(f"/journal-entries/{entry_id}/accept", headers=headers)
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "accepted"
+    assert accepted.json()["reviewed"] is True
+
+
+def test_accept_unreviewed_draft_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Borrador no revisado",
+            "status": "draft",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+
+    response = client.post(f"/journal-entries/{entry_id}/accept", headers=headers)
+    assert response.status_code == 400
+    listing = client.get("/journal-entries", headers=headers).json()
+    match = [e for e in listing if e["id"] == entry_id][0]
+    assert match["status"] == "draft"
+
+
+def test_accept_non_draft_entry_returns_400(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    line_payload = [
+        {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+        {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+    ]
+
+    accepted = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Aceptado", "lines": line_payload},
+        headers=headers,
+    ).json()
+    assert client.post(f"/journal-entries/{accepted['id']}/accept", headers=headers).status_code == 400
+
+    draft = client.post(
+        "/journal-entries",
+        json={"date": "2026-01-15", "description": "Borrador", "status": "draft", "lines": line_payload},
+        headers=headers,
+    ).json()
+    client.post(f"/journal-entries/{draft['id']}/annul", headers=headers)
+    assert client.post(f"/journal-entries/{draft['id']}/accept", headers=headers).status_code == 400
+
+
+def test_review_draft_entry_sets_reviewed_flag(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Borrador a revisar",
+            "status": "draft",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    ).json()
+    entry_id = created["id"]
+    assert created.get("reviewed") is False
+
+    reviewed = client.post(f"/journal-entries/{entry_id}/review", headers=headers)
+    assert reviewed.status_code == 200
+    assert reviewed.json()["reviewed"] is True
+    assert reviewed.json()["status"] == "draft"
+
+
 def test_annul_non_draft_entry_returns_400(client):
     token = _login(client)
     headers = {"Authorization": f"Bearer {token}"}
