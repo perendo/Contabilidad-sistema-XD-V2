@@ -14,6 +14,7 @@ from .database import get_db
 from .models import (
     Account,
     BankIbanAccount,
+    BankImportProfile,
     JournalEntry,
     JournalLine,
     User,
@@ -39,6 +40,20 @@ class BankImportOut(BaseModel):
     iban: str
     created: int
     entry_ids: list[int]
+
+
+class BankImportProfileIn(BaseModel):
+    iban: str
+    date_column: str
+    concept_column: str
+    amount_column: str
+
+
+class BankImportProfileOut(BaseModel):
+    iban: str
+    date_column: str
+    concept_column: str
+    amount_column: str
 
 
 def _normalize(value: object) -> str:
@@ -130,6 +145,77 @@ def _movements(rows: list[list[object]]) -> list[tuple[int, object, object, obje
             (index + 1, values["date"], values["concept"], values["amount"])
         )
     return result
+
+
+def _find_header_by_columns(
+    rows: list[list[object]], date_col: str, concept_col: str, amount_col: str
+) -> tuple[int, dict[str, int]]:
+    target = {_normalize(date_col), _normalize(concept_col), _normalize(amount_col)}
+    for index, row in enumerate(rows):
+        normalized = [_normalize(v) if v is not None else "" for v in row]
+        if target.issubset(set(normalized)):
+            columns = {}
+            for position, name in enumerate(normalized):
+                if name == _normalize(date_col) and "date" not in columns:
+                    columns["date"] = position
+                if name == _normalize(concept_col) and "concept" not in columns:
+                    columns["concept"] = position
+                if name == _normalize(amount_col) and "amount" not in columns:
+                    columns["amount"] = position
+            if len(columns) == 3:
+                return index, columns
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="No se han reconocido las columnas del perfil en el fichero",
+    )
+
+
+def _movements_with_profile(
+    rows: list[list[object]], date_col: str, concept_col: str, amount_col: str
+) -> list[tuple[int, object, object, object]]:
+    header_index, columns = _find_header_by_columns(rows, date_col, concept_col, amount_col)
+    result = []
+    for index in range(header_index + 1, len(rows)):
+        row = rows[index]
+        values = {
+            key: row[position] if position < len(row) else None
+            for key, position in columns.items()
+        }
+        if all(value in (None, "") for value in values.values()):
+            continue
+        result.append(
+            (index + 1, values["date"], values["concept"], values["amount"])
+        )
+    return result
+
+
+def _detect_header_row(rows: list[list[object]]) -> list[str]:
+    best_index = 0
+    best_count = 0
+    for index, row in enumerate(rows):
+        non_empty = [v for v in row if v not in (None, "")]
+        if len(non_empty) > best_count:
+            best_count = len(non_empty)
+            best_index = index
+    if best_count < 2:
+        return []
+    return [str(v) if v is not None else "" for v in rows[best_index]]
+
+
+def _save_profile(db: Session, iban: str, date_col: str, concept_col: str, amount_col: str) -> BankImportProfile:
+    profile = db.query(BankImportProfile).filter(BankImportProfile.iban == iban).first()
+    if profile is None:
+        profile = BankImportProfile(
+            iban=iban, date_column=date_col, concept_column=concept_col, amount_column=amount_col
+        )
+        db.add(profile)
+    else:
+        profile.date_column = date_col
+        profile.concept_column = concept_col
+        profile.amount_column = amount_col
+    db.commit()
+    db.refresh(profile)
+    return profile
 
 
 def _parse_norma_date(text: str) -> date:
@@ -287,6 +373,9 @@ def _parse_norma_43_file(content: bytes) -> tuple[str, list[tuple[int, date, str
 def import_bank_movements(
     file: UploadFile = File(...),
     account_id: int | None = Form(default=None),
+    date_column: str | None = Form(default=None),
+    concept_column: str | None = Form(default=None),
+    amount_column: str | None = Form(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> BankImportOut:
@@ -304,7 +393,38 @@ def import_bank_movements(
         sheet = workbook.active
         rows = [list(row) for row in sheet.iter_rows(values_only=True)]
         iban = _find_iban(rows)
-        movements = _movements(rows)
+        iban_norm = re.sub(r"\s+", "", iban).upper()
+
+        if date_column and concept_column and amount_column:
+            _save_profile(db, iban_norm, date_column, concept_column, amount_column)
+            movements = _movements_with_profile(
+                rows, date_column, concept_column, amount_column
+            )
+        else:
+            try:
+                movements = _movements(rows)
+            except HTTPException:
+                profile = (
+                    db.query(BankImportProfile)
+                    .filter(BankImportProfile.iban == iban_norm)
+                    .first()
+                )
+                if profile is not None:
+                    movements = _movements_with_profile(
+                        rows,
+                        profile.date_column,
+                        profile.concept_column,
+                        profile.amount_column,
+                    )
+                else:
+                    headers = _detect_header_row(rows)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "message": "Se requiere mapeo de columnas",
+                            "headers": headers,
+                        },
+                    )
 
         parsed: list[tuple[int, date, str, Decimal]] = []
         errors: list[str] = []
@@ -414,4 +534,24 @@ def import_bank_movements(
         iban=iban,
         created=len(entries),
         entry_ids=[entry.id for entry in entries],
+    )
+
+
+@router.post(
+    "/bank-import-profiles",
+    response_model=BankImportProfileOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def save_bank_import_profile(
+    payload: BankImportProfileIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BankImportProfileOut:
+    iban = re.sub(r"\s+", "", payload.iban).upper()
+    profile = _save_profile(db, iban, payload.date_column, payload.concept_column, payload.amount_column)
+    return BankImportProfileOut(
+        iban=profile.iban,
+        date_column=profile.date_column,
+        concept_column=profile.concept_column,
+        amount_column=profile.amount_column,
     )

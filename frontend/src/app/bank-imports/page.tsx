@@ -54,6 +54,10 @@ export default function BankImportsPage() {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [headers, setHeaders] = useState<string[] | null>(null);
+  const [dateCol, setDateCol] = useState("");
+  const [conceptCol, setConceptCol] = useState("");
+  const [amountCol, setAmountCol] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -77,7 +81,11 @@ export default function BankImportsPage() {
     router.push("/login");
   }
 
-  async function importFile() {
+  async function importFile(mapping?: {
+    date_column: string;
+    concept_column: string;
+    amount_column: string;
+  }) {
     if (!file) return;
     setError("");
     setResult(null);
@@ -86,6 +94,11 @@ export default function BankImportsPage() {
       const body = new FormData();
       body.append("file", file);
       if (accountId) body.append("account_id", accountId);
+      if (mapping) {
+        body.append("date_column", mapping.date_column);
+        body.append("concept_column", mapping.concept_column);
+        body.append("amount_column", mapping.amount_column);
+      }
 
       const response = await fetch(`${API_BASE}/bank-imports`, {
         method: "POST",
@@ -93,15 +106,44 @@ export default function BankImportsPage() {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error(await readError(response));
+        const text = await response.text();
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          // no JSON
+        }
+        if (parsed?.detail?.headers) {
+          setHeaders(parsed.detail.headers);
+          setDateCol(parsed.detail.headers[0] ?? "");
+          setConceptCol(parsed.detail.headers[0] ?? "");
+          setAmountCol(parsed.detail.headers[0] ?? "");
+          throw new Error(parsed.detail.message || "Se requiere mapeo de columnas");
+        }
+        throw new Error(
+          typeof parsed?.detail === "string" ? parsed.detail : text || response.statusText
+        );
       }
       setResult(await response.json());
       setFile(null);
+      setHeaders(null);
     } catch (e) {
       setError(errorMessage(e, "Error al importar el fichero"));
     } finally {
       setImporting(false);
     }
+  }
+
+  async function confirmMapping() {
+    if (!dateCol || !conceptCol || !amountCol) {
+      setError("Selecciona las tres columnas");
+      return;
+    }
+    await importFile({
+      date_column: dateCol,
+      concept_column: conceptCol,
+      amount_column: amountCol,
+    });
   }
 
   if (!isAuthenticated()) return null;
@@ -180,12 +222,72 @@ export default function BankImportsPage() {
 
             <Button
               variant="contained"
-              onClick={importFile}
+              onClick={() => importFile()}
               disabled={!file || importing}
             >
               {importing ? "Importando..." : "Importar movimientos"}
             </Button>
           </Box>
+
+          {headers && (
+            <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+              <Typography variant="subtitle2">
+                Selecciona las columnas del fichero:
+              </Typography>
+              <FormControl fullWidth>
+                <InputLabel id="date-col-label">Fecha</InputLabel>
+                <Select
+                  labelId="date-col-label"
+                  label="Fecha"
+                  value={dateCol}
+                  onChange={(e) => setDateCol(e.target.value)}
+                >
+                  {headers.map((h) => (
+                    <MenuItem key={h} value={h}>
+                      {h}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth>
+                <InputLabel id="concept-col-label">Concepto</InputLabel>
+                <Select
+                  labelId="concept-col-label"
+                  label="Concepto"
+                  value={conceptCol}
+                  onChange={(e) => setConceptCol(e.target.value)}
+                >
+                  {headers.map((h) => (
+                    <MenuItem key={h} value={h}>
+                      {h}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth>
+                <InputLabel id="amount-col-label">Importe</InputLabel>
+                <Select
+                  labelId="amount-col-label"
+                  label="Importe"
+                  value={amountCol}
+                  onChange={(e) => setAmountCol(e.target.value)}
+                >
+                  {headers.map((h) => (
+                    <MenuItem key={h} value={h}>
+                      {h}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Button
+                variant="contained"
+                onClick={confirmMapping}
+                disabled={importing || !dateCol || !conceptCol || !amountCol}
+              >
+                {importing ? "Importando..." : "Guardar perfil e importar"}
+              </Button>
+            </Box>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mt: 3 }}>

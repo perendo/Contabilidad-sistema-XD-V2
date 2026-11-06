@@ -49,6 +49,16 @@ class BankIbanAccount(Base):
     account: Mapped["Account"] = relationship("Account")
 
 
+class BankImportProfile(Base):
+    __tablename__ = "bank_import_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    iban: Mapped[str] = mapped_column(String(34), unique=True, index=True)
+    date_column: Mapped[str] = mapped_column(String(255))
+    concept_column: Mapped[str] = mapped_column(String(255))
+    amount_column: Mapped[str] = mapped_column(String(255))
+
+
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
 
