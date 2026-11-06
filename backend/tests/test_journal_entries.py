@@ -1,6 +1,18 @@
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
 
+from datetime import date
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.config import settings
+from app.models import JournalEntry
+
+TestingSessionLocal = sessionmaker(
+    autocommit=False, autoflush=False, bind=create_engine(settings.test_database_url, pool_pre_ping=True)
+)
+
 
 def _login(client):
     login = client.post(
@@ -734,3 +746,68 @@ def test_annul_non_draft_entry_returns_400(client):
     ).json()
     client.post(f"/journal-entries/{draft['id']}/annul", headers=headers)
     assert client.post(f"/journal-entries/{draft['id']}/annul", headers=headers).status_code == 400
+
+
+def test_manual_entry_records_its_creator_as_author(client):
+    seed_headers = {"Authorization": f"Bearer {_login(client)}"}
+    client.post(
+        "/users",
+        json={"email": "autor@example.com", "password": "clave123"},
+        headers=seed_headers,
+    )
+    author_token = client.post(
+        "/auth/login",
+        json={"email": "autor@example.com", "password": "clave123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {author_token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    response = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento con autor",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["author"] == "autor@example.com"
+
+
+def test_entries_created_before_the_change_are_listed_without_author(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    db = TestingSessionLocal()
+    try:
+        legacy = JournalEntry(
+            date=date(2026, 1, 10),
+            description="Asiento anterior",
+            status="accepted",
+            company_id=1,
+        )
+        db.add(legacy)
+        db.commit()
+        legacy_id = legacy.id
+    finally:
+        db.close()
+
+    listing = client.get("/journal-entries", headers=headers)
+    assert listing.status_code == 200
+    entry = next(e for e in listing.json() if e["id"] == legacy_id)
+    assert entry["author"] is None

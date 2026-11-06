@@ -68,6 +68,7 @@ class JournalEntry(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     date: Mapped[date] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(20), default="accepted")
@@ -75,6 +76,12 @@ class JournalEntry(Base):
     correction_of_entry_id: Mapped[int | None] = mapped_column(
         ForeignKey("journal_entries.id"), nullable=True
     )
+
+    author_user: Mapped["User | None"] = relationship("User")
+
+    @property
+    def author(self) -> str | None:
+        return self.author_user.email if self.author_user is not None else None
 
     @property
     def corrects_entry_id(self) -> int | None:

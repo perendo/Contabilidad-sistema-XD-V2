@@ -43,7 +43,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 32. [x] Como administrador, quiero migrar la configuración y los datos existentes a una sociedad por defecto, para no perder información al activar multisociedad. Requiere: #30, #31
 33. [x] Como administrador, quiero que los documentos adjuntos y los perfiles de importación bancaria se asocien a la sociedad activa. Requiere: #30, #31
 34. [x] Como administrador, quiero dar de alta otros usuarios con email y contraseña, para que cada persona acceda con su propia cuenta. Requiere: #1
-35. [ ] Como administrador, quiero que cada asiento manual registre el usuario que lo creó, para identificar su autor. Requiere: #1, #34
+35. [x] Como administrador, quiero que cada asiento manual registre el usuario que lo creó, para identificar su autor. Requiere: #1, #34
 36. [ ] Como administrador, quiero que los asientos generados automáticamente (facturas emitidas/recibidas, tesorería, importación bancaria y correcciones) registren al usuario que los generó, para mantener la trazabilidad. Requiere: #34, #35
 
 ## Decisiones técnicas (MVP)

@@ -48,6 +48,7 @@ type JournalEntry = {
   date: string;
   description: string;
   status: string;
+  author: string | null;
   lines: JournalLine[];
 };
 
@@ -273,6 +274,7 @@ export default function JournalPage() {
                 <TableCell>ID</TableCell>
                 <TableCell>Fecha</TableCell>
                 <TableCell>Concepto</TableCell>
+                <TableCell>Autor</TableCell>
                 <TableCell>Líneas</TableCell>
                 <TableCell>Estado</TableCell>
               </TableRow>
@@ -283,6 +285,7 @@ export default function JournalPage() {
                   <TableCell>{entry.id}</TableCell>
                   <TableCell>{entry.date}</TableCell>
                   <TableCell>{entry.description}</TableCell>
+                  <TableCell>{entry.author || "Sin autor"}</TableCell>
                   <TableCell>
                     {entry.lines.map((line) => (
                       <div key={line.id}>
@@ -301,7 +304,7 @@ export default function JournalPage() {
               ))}
               {entries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
+                  <TableCell colSpan={6} align="center">
                     Sin asientos
                   </TableCell>
                 </TableRow>

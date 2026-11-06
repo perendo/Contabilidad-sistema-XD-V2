@@ -44,6 +44,7 @@ class JournalEntryOut(BaseModel):
     description: str
     status: str
     reviewed: bool
+    author: str | None = None
     correction_of_entry_id: int | None = None
     corrects_entry_id: int | None = None
     original_entry_id: int | None = None
@@ -115,13 +116,19 @@ def add_accepted_entry(
 @router.post("/asientos", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
 def create_entry(
     body: JournalEntryIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
     _validate(body, db, company_id)
     entry_status = body.status if body.status is not None else "accepted"
-    entry = JournalEntry(date=body.date, description=body.description, status=entry_status, company_id=company_id)
+    entry = JournalEntry(
+        date=body.date,
+        description=body.description,
+        status=entry_status,
+        company_id=company_id,
+        author_id=user.id,
+    )
     db.add(entry)
     db.flush()
     for line in body.lines:
