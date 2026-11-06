@@ -1,0 +1,60 @@
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "testpass123"
+
+
+def _auth_headers(client):
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
+def test_creating_a_user_allows_login(client):
+    headers = _auth_headers(client)
+
+    response = client.post(
+        "/users",
+        json={"email": "nuevo@example.com", "password": "clave123"},
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+    login = client.post(
+        "/auth/login",
+        json={"email": "nuevo@example.com", "password": "clave123"},
+    )
+    assert login.status_code == 200
+    assert "access_token" in login.json()
+
+
+def test_duplicate_email_is_rejected(client):
+    headers = _auth_headers(client)
+
+    client.post(
+        "/users",
+        json={"email": "dup@example.com", "password": "clave123"},
+        headers=headers,
+    )
+    response = client.post(
+        "/users",
+        json={"email": "dup@example.com", "password": "otraclave"},
+        headers=headers,
+    )
+    assert response.status_code == 409
+
+
+def test_listing_users_includes_created_users(client):
+    headers = _auth_headers(client)
+
+    client.post(
+        "/users",
+        json={"email": "listado@example.com", "password": "clave123"},
+        headers=headers,
+    )
+
+    response = client.get("/users", headers=headers)
+    assert response.status_code == 200
+    emails = [u["email"] for u in response.json()]
+    assert "listado@example.com" in emails
+    assert all("password_hash" not in u for u in response.json())

@@ -42,8 +42,12 @@ def company_folder_name(name: str | None) -> str:
     return cleaned[:_MAX_COMPANY_FOLDER_LENGTH]
 
 
-def _company_name(db: Session) -> str | None:
-    company = db.query(Company).first()
+def _company_name(db: Session, entry: JournalEntry | None = None) -> str | None:
+    company = None
+    if entry is not None and getattr(entry, "company_id", None) is not None:
+        company = db.query(Company).filter(Company.id == entry.company_id).first()
+    if company is None:
+        company = db.query(Company).first()
     return company.name if company is not None else None
 
 
@@ -55,7 +59,7 @@ def _extension(filename: str, content_type: str) -> str:
 
 
 def _relative_folder(db: Session, entry: JournalEntry) -> Path:
-    return Path(company_folder_name(_company_name(db))) / str(entry.date.year)
+    return Path(company_folder_name(_company_name(db, entry))) / str(entry.date.year)
 
 
 def build_file_path(

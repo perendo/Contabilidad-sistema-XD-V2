@@ -28,5 +28,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Liquidación IVA (Mod. 303)", href: "/taxes/iva", icon: "receipt" },
   { label: "Retenciones IRPF (Mod. 111)", href: "/taxes/irpf", icon: "shield" },
   { label: "Modelo 347 Anual", href: "/taxes/347", icon: "users" },
+  { label: "Usuarios", href: "/users", icon: "users" },
   { label: "Exportación Oficial", href: "/reports/export", icon: "download" },
 ];

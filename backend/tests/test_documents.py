@@ -507,6 +507,60 @@ def test_delete_attachment_removes_file_from_disk(client):
     assert _stored_files() == []
 
 
+def test_upload_stores_document_under_entry_company_folder(client):
+    headers = _auth_headers(client)
+
+    company_two = client.post(
+        "/companies",
+        json={"name": "Empresa Dos", "tax_id": "B222", "address": "Calle 2", "fiscal_year": "2026"},
+        headers=headers,
+    ).json()
+    headers_two = {**headers, "X-Company-Id": str(company_two["id"])}
+
+    # Create the entry before configuring the company so the needed accounts can be created.
+    entry, _, _ = _create_entry(client, headers_two, "2026-01-15")
+
+    client.put(
+        "/company",
+        json={"name": "Empresa Dos", "tax_id": "B222", "address": "Calle 2", "fiscal_year": "2026"},
+        headers=headers_two,
+    )
+
+    response = client.post(
+        f"/journal-entries/{entry['id']}/attachments",
+        files={"file": ("factura.pdf", b"%PDF-1.4 demo", "application/pdf")},
+        headers=headers_two,
+    )
+    assert response.status_code == 201
+
+    files = _stored_files()
+    assert len(files) == 1
+    stored = files[0]
+    assert stored.parent.parent.name == "Empresa Dos"
+
+
+def test_document_access_is_scoped_to_entry_company(client):
+    headers = _auth_headers(client)
+
+    company_two = client.post(
+        "/companies",
+        json={"name": "Empresa Dos", "tax_id": "B222", "address": "Calle 2", "fiscal_year": "2026"},
+        headers=headers,
+    ).json()
+    headers_two = {**headers, "X-Company-Id": str(company_two["id"])}
+
+    entry, _, _ = _create_entry(client, headers, "2026-01-15")
+
+    uploaded = client.post(
+        f"/journal-entries/{entry['id']}/attachments",
+        files={"file": ("hello.txt", b"hello world", "text/xml")},
+        headers=headers,
+    ).json()
+
+    response = client.get(f"/attachments/{uploaded['id']}", headers=headers_two)
+    assert response.status_code == 404
+
+
 def test_changing_draft_entry_year_moves_documents(client):
     headers = _auth_headers(client)
     entry, account_a, account_b = _create_entry(

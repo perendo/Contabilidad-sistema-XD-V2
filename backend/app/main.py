@@ -22,6 +22,7 @@ from .modelo_347 import router as modelo_347_router
 from .journal_entries import router as journal_entries_router
 from .received_invoices import router as received_invoices_router
 from .third_parties import router as third_parties_router
+from .users import router as users_router
 from .config import settings
 
 app = FastAPI(title="Contabilidad")
@@ -60,6 +61,7 @@ app.include_router(exportar_pyg_router)
 app.include_router(modelo_347_router)
 app.include_router(received_invoices_router)
 app.include_router(documents_router)
+app.include_router(users_router)
 
 
 @app.get("/health")
