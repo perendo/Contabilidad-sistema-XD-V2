@@ -45,6 +45,24 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 34. [x] Como administrador, quiero dar de alta otros usuarios con email y contraseña, para que cada persona acceda con su propia cuenta. Requiere: #1
 35. [x] Como administrador, quiero que cada asiento manual registre el usuario que lo creó, para identificar su autor. Requiere: #1, #34
 36. [x] Como administrador, quiero que los asientos generados automáticamente (facturas emitidas/recibidas, tesorería, importación bancaria y correcciones) registren al usuario que los generó, para mantener la trazabilidad. Requiere: #34, #35
+37. [ ] Como administrador, quiero subir una factura recibida escaneada (PDF o imagen) y revisar los datos extraídos en un formulario editable, para registrarla sin teclearla y con el documento original adjunto.
+38. [ ] Como administrador, quiero que el sistema valide el proveedor, la base, el tipo de IVA, la cuota y el total extraídos y me avise de incoherencias antes de confirmar, para evitar errores fiscales. Requiere: #37
+39. [ ] Como administrador, quiero configurar un importe umbral a partir del cual una factura requiere aprobación, para que las operaciones de alto riesgo no se registren sin revisión. Requiere: #37
+40. [ ] Como administrador, quiero que las facturas por debajo del umbral y sin avisos se registren automáticamente, para agilizar las facturas habituales. Requiere: #39
+41. [ ] Como administrador, quiero una bandeja de facturas pendientes de aprobación donde ver el documento original, los datos extraídos y el motivo de la pausa, para aprobarlas o rechazarlas. Requiere: #39
+42. [ ] Como administrador, quiero que al aprobar una factura se cree el asiento contable y quede registrado quién y cuándo la aprobó, para mantener la trazabilidad. Requiere: #41
+43. [ ] Como administrador, quiero que las aprobaciones pendientes se conserven al cerrar sesión o reiniciar el sistema, para no perder trabajo. Requiere: #41
+44. [ ] Como administrador, quiero poder rechazar una factura propuesta indicando el motivo, para corregirla o descartarla. Requiere: #41
+
+## Automatización de facturas con agente (nuevo epic)
+
+Sistema contable single-tenant con varias sociedades, en español y EUR. Se añade un flujo de automatización de facturas recibidas con OCR/LLM y aprobación humana antes de registrar operaciones irreversibles.
+
+Stack: FastAPI + Next.js + PostgreSQL existentes; se añade LangGraph para el flujo del agente y un servicio OCR/LLM (proveedor a decidir en implementación).
+
+Decisiones costosas: single-tenant, rol único (cualquier usuario autenticado puede aprobar), solo online, español, EUR.
+
+Fuera de alcance: cotejo a 3 vías con órdenes de compra y albaranes; sincronización con ERP externos o e-commerce; ejecución de pagos.
 
 ## Decisiones técnicas (MVP)
 - Auth: JWT (python-jose) con usuario seed en tabla `users`; credenciales del seed vía `.env` (`SEED_EMAIL`, `SEED_PASSWORD`) y script `seed.py`. Login JSON en `/auth/login`, formulario OAuth2 en `/auth/token` (usado por Swagger) y `POST /auth/logout`. El token se entrega en la cookie HttpOnly `token` (SameSite=Lax por defecto, `Secure` automático sobre HTTPS o forzable con `COOKIE_SECURE`, dominio con `COOKIE_DOMAIN`, nombre configurable con `AUTH_COOKIE_NAME`) y también como bearer para clientes API. El frontend usa `credentials: "include"`, comprueba la sesión con el marcador no sensible `auth_session` y no guarda el JWT en localStorage. `POST /auth/logout` borra ambas cookies.
