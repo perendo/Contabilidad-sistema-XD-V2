@@ -811,3 +811,57 @@ def test_entries_created_before_the_change_are_listed_without_author(client):
     assert listing.status_code == 200
     entry = next(e for e in listing.json() if e["id"] == legacy_id)
     assert entry["author"] is None
+
+
+def test_correction_entry_records_the_author(client):
+    seed_headers = {"Authorization": f"Bearer {_login(client)}"}
+    client.post(
+        "/users",
+        json={"email": "corrector@example.com", "password": "clave123"},
+        headers=seed_headers,
+    )
+    author_token = client.post(
+        "/auth/login",
+        json={"email": "corrector@example.com", "password": "clave123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {author_token}"}
+
+    acc_a = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=seed_headers,
+    ).json()
+    acc_b = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
+        headers=seed_headers,
+    ).json()
+
+    original = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento original",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=seed_headers,
+    ).json()
+
+    correction = client.post(
+        f"/journal-entries/{original['id']}/correct",
+        json={
+            "date": "2026-01-16",
+            "description": "Corrección",
+            "lines": [
+                {"account_id": acc_a["id"], "description": "D", "debit": 10, "credit": 0},
+                {"account_id": acc_b["id"], "description": "H", "debit": 0, "credit": 10},
+            ],
+        },
+        headers=headers,
+    )
+
+    assert correction.status_code == 201
+    assert correction.json()["author"] == "corrector@example.com"

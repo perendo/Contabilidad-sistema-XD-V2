@@ -67,7 +67,7 @@ class InvoiceOut(BaseModel):
 @router.post("/invoices", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
 def create_invoice(
     body: InvoiceIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> Invoice:
@@ -152,6 +152,7 @@ def create_invoice(
         description=description,
         lines=lines,
         company_id=company_id,
+        author_id=user.id,
     )
 
     invoice = Invoice(
@@ -203,7 +204,7 @@ class InvoicePayIn(BaseModel):
 def pay_issued_invoice(
     invoice_id: int,
     body: InvoicePayIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> Invoice:
@@ -252,6 +253,7 @@ def pay_issued_invoice(
             ),
         ],
         company_id=company_id,
+        author_id=user.id,
     )
 
     invoice.status = "cobrada"

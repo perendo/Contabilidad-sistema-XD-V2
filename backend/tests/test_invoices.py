@@ -314,3 +314,51 @@ def test_rejected_invoice_does_not_consume_number(client):
         headers=headers,
     ).json()
     assert created["number"] == 1
+
+
+def test_issued_invoice_and_its_collection_entry_record_the_author(client):
+    seed_headers = {"Authorization": f"Bearer {_login(client)}"}
+    client.post(
+        "/users",
+        json={"email": "facturador@example.com", "password": "clave123"},
+        headers=seed_headers,
+    )
+    author_token = client.post(
+        "/auth/login",
+        json={"email": "facturador@example.com", "password": "clave123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {author_token}"}
+
+    _, client_third_party = _setup_accounts_and_client(client, headers)
+    client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    invoice = client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": client_third_party["id"],
+            "description": "Servicio",
+            "base_amount": 100,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    ).json()
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    invoice_entry = next(e for e in entries if e["id"] == invoice["entry_id"])
+    assert invoice_entry["author"] == "facturador@example.com"
+
+    paid = client.post(
+        f"/invoices/{invoice['id']}/pay",
+        json={"status": "cobrada"},
+        headers=headers,
+    )
+    assert paid.status_code == 200
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    collection_entry = next(e for e in entries if e["id"] != invoice["entry_id"])
+    assert collection_entry["author"] == "facturador@example.com"

@@ -90,12 +90,19 @@ def add_accepted_entry(
     description: str,
     lines: list[JournalLineIn],
     company_id: int | None = None,
+    author_id: int | None = None,
 ) -> JournalEntry:
     """Valida y añade un asiento aceptado a la sesión, sin confirmar la transacción."""
     _validate(
         JournalEntryIn(date=entry_date, description=description, lines=lines), db, company_id
     )
-    entry = JournalEntry(date=entry_date, description=description, status="accepted", company_id=company_id)
+    entry = JournalEntry(
+        date=entry_date,
+        description=description,
+        status="accepted",
+        company_id=company_id,
+        author_id=author_id,
+    )
     db.add(entry)
     db.flush()
     for line in lines:
@@ -332,7 +339,7 @@ def accept_entry(
 def correct_entry(
     entry_id: int,
     body: JournalEntryIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
@@ -354,6 +361,7 @@ def correct_entry(
         status="accepted",
         correction_of_entry_id=original.id,
         company_id=company_id if company_id is not None else original.company_id,
+        author_id=user.id,
     )
     db.add(entry)
     db.flush()

@@ -253,6 +253,41 @@ def test_import_rejects_account_that_is_not_a_detail_bank_subaccount(client):
     assert client.get("/journal-entries", headers=headers).json() == []
 
 
+def test_bank_import_entries_record_the_author(client):
+    seed_headers = _auth_headers(client)
+    client.post(
+        "/users",
+        json={"email": "banco@example.com", "password": "clave123"},
+        headers=seed_headers,
+    )
+    author_token = client.post(
+        "/auth/login",
+        json={"email": "banco@example.com", "password": "clave123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {author_token}"}
+
+    bank = _create_account(client, headers, "5720001", "Banco principal")
+    _create_account(client, headers, "555", "Partidas pendientes de aplicación")
+
+    response = client.post(
+        "/bank-imports",
+        files={
+            "file": (
+                "movimientos.xlsx",
+                _bank_file([("27/02/2026", "Traspaso", "-595.0")]),
+                XLSX_MIME,
+            )
+        },
+        data={"account_id": str(bank["id"])},
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    assert len(entries) == 1
+    assert entries[0]["author"] == "banco@example.com"
+
+
 
 
 

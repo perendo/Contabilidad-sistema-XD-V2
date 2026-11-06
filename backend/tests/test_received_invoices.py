@@ -752,3 +752,91 @@ def test_received_invoice_rejects_aggregate_expense_account(client):
     assert rejected.status_code == 400
     assert client.get("/received-invoices", headers=headers).json() == []
     assert client.get("/journal-entries", headers=headers).json() == []
+
+
+def test_received_invoice_and_its_payment_entry_record_the_author(client):
+    seed_headers = {"Authorization": f"Bearer {_login(client)}"}
+    client.post(
+        "/users",
+        json={"email": "comprador@example.com", "password": "clave123"},
+        headers=seed_headers,
+    )
+    author_token = client.post(
+        "/auth/login",
+        json={"email": "comprador@example.com", "password": "clave123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {author_token}"}
+
+    accounts, supplier = _setup_accounts_and_supplier(client, headers)
+    client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    invoice = client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-04-02",
+            "supplier_id": supplier["id"],
+            "supplier_number": "F-2026-0042",
+            "description": "Compra de mercaderías",
+            "base_amount": 200,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    ).json()
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    invoice_entry = next(e for e in entries if e["id"] == invoice["entry_id"])
+    assert invoice_entry["author"] == "comprador@example.com"
+
+    paid = client.post(
+        f"/received-invoices/{invoice['id']}/pay",
+        json={"status": "pagada"},
+        headers=headers,
+    )
+    assert paid.status_code == 200
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    payment_entry = next(e for e in entries if e["id"] != invoice["entry_id"])
+    assert payment_entry["author"] == "comprador@example.com"
+
+
+def test_imported_received_invoice_records_the_author(client):
+    seed_headers = {"Authorization": f"Bearer {_login(client)}"}
+    client.post(
+        "/users",
+        json={"email": "importador@example.com", "password": "clave123"},
+        headers=seed_headers,
+    )
+    author_token = client.post(
+        "/auth/login",
+        json={"email": "importador@example.com", "password": "clave123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {author_token}"}
+
+    expense = client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    response = client.post(
+        "/received-invoices/import",
+        files={"file": ("factura.xml", FACTURAE_SAMPLE.encode("utf-8"), "application/xml")},
+        data={"expense_account_id": str(expense["id"])},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    invoice = response.json()["invoice"]
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    imported_entry = next(e for e in entries if e["id"] == invoice["entry_id"])
+    assert imported_entry["author"] == "importador@example.com"

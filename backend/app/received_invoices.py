@@ -89,7 +89,7 @@ class ReceivedInvoiceOut(BaseModel):
 )
 def create_received_invoice(
     body: ReceivedInvoiceIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> ReceivedInvoice:
@@ -184,6 +184,7 @@ def create_received_invoice(
         description=f"Factura recibida {supplier_number} - {supplier.name}",
         lines=lines,
         company_id=company_id,
+        author_id=user.id,
     )
     invoice = ReceivedInvoice(
         date=body.date,
@@ -234,7 +235,7 @@ class ReceivedInvoicePayIn(BaseModel):
 def pay_received_invoice(
     invoice_id: int,
     body: ReceivedInvoicePayIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> ReceivedInvoice:
@@ -280,6 +281,7 @@ def pay_received_invoice(
             ),
         ],
         company_id=company_id,
+        author_id=user.id,
     )
 
     invoice.status = "pagada"
@@ -487,7 +489,7 @@ def _parse_pdf_text(text):
     }
 
 
-def _create_from_extracted(data, content, filename, content_type, expense_account_id, db, company_id=None):
+def _create_from_extracted(data, content, filename, content_type, expense_account_id, db, company_id=None, user=None):
     supplier, created = _get_or_create_supplier(db, data["nif"], data["name"], company_id)
 
     if expense_account_id is None:
@@ -507,7 +509,7 @@ def _create_from_extracted(data, content, filename, content_type, expense_accoun
         expense_account_id=expense_account_id,
     )
     try:
-        invoice = create_received_invoice(body, None, db, company_id=company_id)
+        invoice = create_received_invoice(body, user, db, company_id=company_id)
     except HTTPException:
         db.rollback()
         raise
@@ -550,7 +552,7 @@ def _create_from_extracted(data, content, filename, content_type, expense_accoun
 def import_received_invoice(
     file: UploadFile = File(...),
     expense_account_id: int | None = Form(default=None),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ):
@@ -564,4 +566,4 @@ def import_received_invoice(
     else:
         data = _parse_facturae(content)
         content_type = "application/xml"
-    return _create_from_extracted(data, content, filename, content_type, expense_account_id, db, company_id=company_id)
+    return _create_from_extracted(data, content, filename, content_type, expense_account_id, db, company_id=company_id, user=user)

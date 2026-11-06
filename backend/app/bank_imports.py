@@ -380,7 +380,7 @@ def import_bank_movements(
     date_column: str | None = Form(default=None),
     concept_column: str | None = Form(default=None),
     amount_column: str | None = Form(default=None),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> BankImportOut:
@@ -507,6 +507,7 @@ def import_bank_movements(
                 description=concept,
                 status="draft",
                 company_id=company_id,
+                author_id=user.id,
             )
             db.add(entry)
             db.flush()
