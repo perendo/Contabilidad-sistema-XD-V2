@@ -32,7 +32,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 21. [x] Como administrador, quiero que los asientos aceptados no se puedan borrar, para preservar la trazabilidad. Requiere: #19
 22. [x] Como administrador, quiero importar facturas recibidas desde documento (PDF/XML) y extraer automáticamente los datos del proveedor para generar el asiento contable, para agilizar el registro de compras/gastos. Requiere: #5, #15, #16 (implementado: importación desde XML FacturaE; PDF movido a #26)
 23. [x] Como administrador, quiero exportar la liquidación de IVA de un periodo a PDF, CSV o Excel, para compartir la liquidación externamente. Requiere: #13, #7 (IRPF, Modelo 347 y cuenta de pérdidas y ganancias movidos a #27, #28 y #29)
-24. [ ] Como administrador, quiero importar movimientos bancarios desde un fichero Norma 43 CSB asignando al IBAN su cuenta contable del PGC, para revisarlos como asientos en borrador antes de aceptarlos. Requiere: #18
+24. [x] Como administrador, quiero importar movimientos bancarios desde un fichero Norma 43 CSB asignando al IBAN su cuenta contable del PGC, para revisarlos como asientos en borrador antes de aceptarlos. Requiere: #18
 25. [ ] Como administrador, quiero guardar perfiles de importación por banco, para poder importar extractos con distintas columnas sin cambiar el sistema. Requiere: #18
 26. [x] Como administrador, quiero importar facturas recibidas desde PDF con texto extraíble, extrayendo los datos del proveedor y de la factura para generar el asiento contable, para agilizar el registro de compras/gastos. Requiere: #22
 27. [x] Como administrador, quiero exportar el resumen trimestral de IRPF a PDF, CSV o Excel, para compartirlo externamente. Requiere: #13, #8

@@ -23,6 +23,7 @@ router = APIRouter(tags=["bank-imports"])
 
 SUSPENSE_CODE = "555"
 BANK_CODE_PREFIX = "57"
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
 HEADER_ALIASES = {
     "date": {"fecha operacion", "fecha"},
@@ -106,9 +107,12 @@ def _parse_amount(value: object) -> Decimal:
     else:
         text = text.replace(",", ".")
     try:
-        return Decimal(text)
+        result = Decimal(text)
     except InvalidOperation as exc:
         raise ValueError("importe inválido") from exc
+    if result == 0:
+        raise ValueError("importe inválido")
+    return result
 
 
 def _movements(rows: list[list[object]]) -> list[tuple[int, object, object, object]]:
@@ -128,6 +132,153 @@ def _movements(rows: list[list[object]]) -> list[tuple[int, object, object, obje
     return result
 
 
+def _parse_norma_date(text: str) -> date:
+    text = text.strip()
+    for fmt in ("%Y%m%d", "%y%m%d"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError("fecha inválida")
+
+
+def _parse_norma_importe(text: str) -> Decimal:
+    text = text.strip()
+    if not text:
+        return Decimal("0")
+    if not text.isdigit():
+        raise ValueError("importe inválido")
+    if len(text) <= 4:
+        text = text.zfill(5)
+    return Decimal(f"{text[:-4] or '0'}.{text[-4:]}")
+
+
+def _ccc_to_iban(ccc: str) -> str:
+    numeric = ccc + "142800"
+    remainder = 0
+    for char in numeric:
+        remainder = (remainder * 10 + int(char)) % 97
+    check = 98 - remainder
+    if check == 0:
+        check = 98
+    return f"ES{check:02d}{ccc}"
+
+
+def _parse_norma_43_file(content: bytes) -> tuple[str, list[tuple[int, date, str, Decimal]]]:
+    try:
+        text = content.decode("iso-8859-1")
+    except (UnicodeDecodeError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El fichero no es un Norma 43 válido",
+        )
+
+    lines = [ln for ln in text.splitlines() if ln.strip() != ""]
+    if not lines:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="El fichero está vacío"
+        )
+
+    iban: str | None = None
+    for line in lines:
+        if line[0:2] == "01":
+            field = line[26:60].strip()
+            candidate = re.sub(r"\s+", "", field).upper()
+            if IBAN_RE.fullmatch(candidate):
+                iban = candidate
+                break
+            if len(candidate) == 20 and candidate.isdigit():
+                iban = _ccc_to_iban(candidate)
+                break
+    if iban is None:
+        for line in lines:
+            for match in re.finditer(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", line):
+                candidate = match.group(0)
+                if IBAN_RE.fullmatch(candidate):
+                    iban = candidate
+                    break
+            if iban is not None:
+                break
+    if iban is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se ha encontrado ningún IBAN en el fichero",
+        )
+
+    parsed: list[tuple[int, date, str, Decimal]] = []
+    errors: list[str] = []
+    control_count: int | None = None
+    control_sum: Decimal | None = None
+    for index, line in enumerate(lines, start=1):
+        if len(line) != 100:
+            errors.append(f"Fila {index}: longitud {len(line)} != 100")
+            continue
+        code = line[0:2]
+        if code == "01":
+            continue
+        if code in ("21", "22"):
+            concept = line[22:70].strip()
+            try:
+                entry_date = _parse_norma_date(line[6:14])
+            except ValueError:
+                errors.append(f"Fila {index}: fecha inválida")
+                continue
+            try:
+                importe = _parse_norma_importe(line[70:86])
+            except ValueError:
+                errors.append(f"Fila {index}: importe inválido")
+                continue
+            if importe <= 0:
+                errors.append(f"Fila {index}: importe inválido")
+                continue
+            amount = -importe if code == "21" else importe
+            parsed.append((index, entry_date, concept, amount))
+        elif code == "98":
+            raw_count = line[2:8].strip()
+            try:
+                control_count = int(raw_count) if raw_count else None
+            except ValueError:
+                control_count = None
+            raw_sum = line[8:24].strip()
+            try:
+                control_sum = _parse_norma_importe(raw_sum) if raw_sum else None
+            except ValueError:
+                control_sum = None
+        else:
+            errors.append(f"Fila {index}: código de registro desconocido {code}")
+
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="; ".join(errors)
+        )
+
+    if not parsed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El fichero no contiene movimientos",
+        )
+
+    if control_count is not None and control_count != len(parsed):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Control declara {control_count} movimientos, leídos {len(parsed)}",
+        )
+    if control_sum is not None:
+        suma_abs = sum((abs(item[3]) for item in parsed), Decimal("0"))
+        if control_sum != suma_abs:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Suma control {control_sum} != {suma_abs}",
+            )
+
+    return iban, parsed
+
+
 @router.post(
     "/bank-imports",
     response_model=BankImportOut,
@@ -139,30 +290,42 @@ def import_bank_movements(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> BankImportOut:
-    workbook = load_workbook(BytesIO(file.file.read()), data_only=True)
-    sheet = workbook.active
-    rows = [list(row) for row in sheet.iter_rows(values_only=True)]
-    iban = _find_iban(rows)
-    movements = _movements(rows)
-
-    parsed: list[tuple[int, date, str, Decimal]] = []
-    errors: list[str] = []
-    for line_number, raw_date, concept, raw_amount in movements:
-        try:
-            parsed.append(
-                (
-                    line_number,
-                    _parse_date(raw_date),
-                    str(concept) if concept is not None else "",
-                    _parse_amount(raw_amount),
-                )
-            )
-        except ValueError as exc:
-            errors.append(f"Fila {line_number}: {exc}")
-    if errors:
+    content = file.file.read()
+    if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="; ".join(errors)
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El fichero supera el tamaño máximo de 10 MB",
         )
+    filename = (file.filename or "").lower()
+    is_excel = filename.endswith(".xlsx") or content.startswith(b"PK")
+
+    if is_excel:
+        workbook = load_workbook(BytesIO(content), data_only=True)
+        sheet = workbook.active
+        rows = [list(row) for row in sheet.iter_rows(values_only=True)]
+        iban = _find_iban(rows)
+        movements = _movements(rows)
+
+        parsed: list[tuple[int, date, str, Decimal]] = []
+        errors: list[str] = []
+        for line_number, raw_date, concept, raw_amount in movements:
+            try:
+                parsed.append(
+                    (
+                        line_number,
+                        _parse_date(raw_date),
+                        str(concept) if concept is not None else "",
+                        _parse_amount(raw_amount),
+                    )
+                )
+            except ValueError as exc:
+                errors.append(f"Fila {line_number}: {exc}")
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="; ".join(errors)
+            )
+    else:
+        iban, parsed = _parse_norma_43_file(content)
 
     mapping = (
         db.query(BankIbanAccount).filter(BankIbanAccount.iban == iban).first()

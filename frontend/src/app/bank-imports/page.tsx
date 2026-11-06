@@ -127,17 +127,18 @@ export default function BankImportsPage() {
       <Container sx={{ mt: 4 }} maxWidth="sm">
         <Paper sx={{ p: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Sube un Excel (.xlsx) de movimientos bancarios. Cada movimiento se
-            creará como asiento en borrador, usando la cuenta 555 como
-            contrapartida, para que lo revises antes de aceptarlo.
+            Sube un Excel (.xlsx) o un fichero Norma 43 (.csb/.txt) de
+            movimientos bancarios. Cada movimiento se creará como asiento en
+            borrador, usando la cuenta 555 como contrapartida, para que lo
+            revises antes de aceptarlo.
           </Typography>
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <Button variant="outlined" component="label" disabled={importing}>
-              {file ? file.name : "Seleccionar fichero .xlsx"}
+              {file ? file.name : "Seleccionar fichero (.xlsx, .csb, .txt)"}
               <input
                 type="file"
-                accept=".xlsx"
+                accept=".xlsx,.csb,.txt"
                 hidden
                 onChange={(event) => {
                   setResult(null);
