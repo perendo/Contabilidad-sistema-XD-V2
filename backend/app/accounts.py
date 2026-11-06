@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Account, User
 
@@ -36,6 +37,7 @@ def create_account(
     body: AccountIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> Account:
     if body.type not in ACCOUNT_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de cuenta no válido")
@@ -43,7 +45,7 @@ def create_account(
         if body.level != 1:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Las cuentas de nivel 1 no tienen padre")
     else:
-        parent = db.query(Account).filter(Account.id == body.parent_id).first()
+        parent = db.query(Account).filter(Account.id == body.parent_id, Account.company_id == company_id).first()
         if parent is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cuenta padre no existe")
         if body.level != parent.level + 1:
@@ -52,7 +54,7 @@ def create_account(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El código debe comenzar por el código del padre")
         if body.level > 8:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nivel máximo 8")
-    account = Account(**body.model_dump())
+    account = Account(**body.model_dump(), company_id=company_id)
     db.add(account)
     try:
         db.commit()
@@ -70,8 +72,9 @@ def list_accounts(
     offset: int = Query(default=0, ge=0),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> list[Account]:
-    q = db.query(Account)
+    q = db.query(Account).filter(Account.company_id == company_id)
     if search:
         escaped = _escape_like(search)
         like = f"%{escaped}%"

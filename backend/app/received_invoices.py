@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .invoices import ALLOWED_VAT_RATES, CENT
 from .document_storage import build_file_path, write_document
@@ -90,6 +91,7 @@ def create_received_invoice(
     body: ReceivedInvoiceIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> ReceivedInvoice:
     if body.base_amount <= 0:
         raise HTTPException(
@@ -132,11 +134,10 @@ def create_received_invoice(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La cuenta de gasto no es vÃ¡lida",
         )
-    vat_account = (
-        db.query(Account)
-        .filter(Account.code == VAT_ACCOUNT_BY_RATE[body.vat_rate])
-        .first()
-    )
+    vaq = db.query(Account).filter(Account.code == VAT_ACCOUNT_BY_RATE[body.vat_rate])
+    if company_id is not None:
+        vaq = vaq.filter(Account.company_id == company_id)
+    vat_account = vaq.first()
     if vat_account is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -160,7 +161,10 @@ def create_received_invoice(
         ),
     ]
     if irpf_amount > 0:
-        retention_account = db.query(Account).filter(Account.code == "4751").first()
+        raq = db.query(Account).filter(Account.code == "4751")
+        if company_id is not None:
+            raq = raq.filter(Account.company_id == company_id)
+        retention_account = raq.first()
         if retention_account is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -179,9 +183,11 @@ def create_received_invoice(
         entry_date=body.date,
         description=f"Factura recibida {supplier_number} - {supplier.name}",
         lines=lines,
+        company_id=company_id,
     )
     invoice = ReceivedInvoice(
         date=body.date,
+        company_id=company_id,
         third_party_id=body.third_party_id,
         supplier_number=supplier_number,
         description=body.description,
@@ -211,12 +217,12 @@ def create_received_invoice(
 def list_received_invoices(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> list[ReceivedInvoice]:
-    return (
-        db.query(ReceivedInvoice)
-        .order_by(ReceivedInvoice.date, ReceivedInvoice.id)
-        .all()
-    )
+    q = db.query(ReceivedInvoice)
+    if company_id is not None:
+        q = q.filter(ReceivedInvoice.company_id == company_id)
+    return q.order_by(ReceivedInvoice.date, ReceivedInvoice.id).all()
 
 
 class ReceivedInvoicePayIn(BaseModel):
@@ -230,6 +236,7 @@ def pay_received_invoice(
     body: ReceivedInvoicePayIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> ReceivedInvoice:
     invoice = db.query(ReceivedInvoice).filter(ReceivedInvoice.id == invoice_id).first()
     if invoice is None:
@@ -272,6 +279,7 @@ def pay_received_invoice(
                 credit=invoice.total,
             ),
         ],
+        company_id=company_id,
     )
 
     invoice.status = "pagada"
@@ -373,9 +381,12 @@ def _parse_facturae(content):
     }
 
 
-def _next_supplier_account_code(db):
+def _next_supplier_account_code(db, company_id=None):
     prefix = "4000"
-    existing = [a.code for a in db.query(Account).filter(Account.code.like(prefix + "%")).all()]
+    q = db.query(Account).filter(Account.code.like(prefix + "%"))
+    if company_id is not None:
+        q = q.filter(Account.company_id == company_id)
+    existing = [a.code for a in q.all()]
     nums = []
     for code in existing:
         suffix = code[len(prefix):]
@@ -385,13 +396,13 @@ def _next_supplier_account_code(db):
     return f"{prefix}{next_num:04d}"
 
 
-def _get_or_create_supplier(db, nif, name):
+def _get_or_create_supplier(db, nif, name, company_id=None):
     supplier = db.query(ThirdParty).filter(ThirdParty.tax_id == nif).first()
     if supplier is not None:
         return supplier, False
-    code = _next_supplier_account_code(db)
+    code = _next_supplier_account_code(db, company_id)
     parent = db.query(Account).filter(Account.code == "4000").first()
-    account = Account(code=code, name=name, type="Pasivo", level=4, is_detail=True, parent_id=parent.id if parent else None)
+    account = Account(code=code, name=name, type="Pasivo", level=4, is_detail=True, parent_id=parent.id if parent else None, company_id=company_id)
     if parent is not None:
         account.level = (parent.level or 0) + 1
     db.add(account)
@@ -476,8 +487,8 @@ def _parse_pdf_text(text):
     }
 
 
-def _create_from_extracted(data, content, filename, content_type, expense_account_id, db):
-    supplier, created = _get_or_create_supplier(db, data["nif"], data["name"])
+def _create_from_extracted(data, content, filename, content_type, expense_account_id, db, company_id=None):
+    supplier, created = _get_or_create_supplier(db, data["nif"], data["name"], company_id)
 
     if expense_account_id is None:
         expense = db.query(Account).filter(Account.type == "Gasto", Account.is_detail == True).first()
@@ -496,7 +507,7 @@ def _create_from_extracted(data, content, filename, content_type, expense_accoun
         expense_account_id=expense_account_id,
     )
     try:
-        invoice = create_received_invoice(body, None, db)
+        invoice = create_received_invoice(body, None, db, company_id=company_id)
     except HTTPException:
         db.rollback()
         raise
@@ -541,6 +552,7 @@ def import_received_invoice(
     expense_account_id: int | None = Form(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ):
     content = file.file.read()
     filename = file.filename or "factura"
@@ -552,4 +564,4 @@ def import_received_invoice(
     else:
         data = _parse_facturae(content)
         content_type = "application/xml"
-    return _create_from_extracted(data, content, filename, content_type, expense_account_id, db)
+    return _create_from_extracted(data, content, filename, content_type, expense_account_id, db, company_id=company_id)

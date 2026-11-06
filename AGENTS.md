@@ -38,7 +38,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 27. [x] Como administrador, quiero exportar el resumen trimestral de IRPF a PDF, CSV o Excel, para compartirlo externamente. Requiere: #13, #8
 28. [x] Como administrador, quiero exportar el Modelo 347 a PDF, CSV o Excel, para compartirlo externamente. Requiere: #13, #9
 29. [x] Como administrador, quiero exportar la cuenta de pérdidas y ganancias a PDF, CSV o Excel, para compartirla externamente. Requiere: #13, #12
-30. [ ] Como administrador, quiero que los datos de cada sociedad (plan de cuentas, asientos, facturas, terceros, IBANs y perfiles) estén completamente aislados, para poder gestionar varias empresas sin mezclar información. Requiere: #1
+30. [x] Como administrador, quiero que los datos de cada sociedad (plan de cuentas, asientos, facturas, terceros, IBANs y perfiles) estén completamente aislados, para poder gestionar varias empresas sin mezclar información. Requiere: #1
 31. [ ] Como administrador, quiero crear, editar y seleccionar la sociedad activa al entrar al sistema, para trabajar con una empresa a la vez. Requiere: #1, #30
 32. [ ] Como administrador, quiero migrar la configuración y los datos existentes a una sociedad por defecto, para no perder información al activar multisociedad. Requiere: #30, #31
 33. [ ] Como administrador, quiero que los documentos adjuntos y los perfiles de importación bancaria se asocien a la sociedad activa. Requiere: #30, #31

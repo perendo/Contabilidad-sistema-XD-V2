@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .document_storage import (
     build_file_path,
@@ -38,12 +39,18 @@ class AttachmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-def _get_document(db: Session, attachment_id: int) -> Document:
+def _get_document(db: Session, attachment_id: int, company_id: int | None = None) -> Document:
     doc = db.query(Document).filter(Document.id == attachment_id).first()
     if doc is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Documento no existe"
         )
+    if company_id is not None:
+        entry = db.query(JournalEntry).filter(JournalEntry.id == doc.entry_id).first()
+        if entry is None or entry.company_id != company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Documento no existe"
+            )
     return doc
 
 
@@ -76,8 +83,12 @@ async def upload_attachment(
     file: UploadFile = File(...),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> AttachmentOut:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe"
@@ -135,8 +146,12 @@ def list_attachments(
     entry_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> list[Document]:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe"
@@ -154,8 +169,9 @@ def download_attachment(
     attachment_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> Response:
-    doc = _get_document(db, attachment_id)
+    doc = _get_document(db, attachment_id, company_id)
     try:
         content = read_document(doc.file_path)
     except (FileNotFoundError, ValueError):
@@ -170,8 +186,9 @@ def delete_attachment(
     attachment_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> None:
-    doc = _get_document(db, attachment_id)
+    doc = _get_document(db, attachment_id, company_id)
     file_path = doc.file_path
     db.delete(doc)
     db.commit()

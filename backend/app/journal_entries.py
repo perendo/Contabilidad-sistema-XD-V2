@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .document_storage import delete_document, move_document
 from .models import Account, JournalEntry, JournalLine, User
@@ -53,7 +54,7 @@ class JournalEntryOut(BaseModel):
 ALLOWED_STATUSES = {"draft", "accepted"}
 
 
-def _validate(body: JournalEntryIn, db: Session) -> None:
+def _validate(body: JournalEntryIn, db: Session, company_id: int | None = None) -> None:
     if len(body.lines) < 2:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Se requieren al menos dos líneas")
     if body.status is not None and body.status not in ALLOWED_STATUSES:
@@ -63,7 +64,10 @@ def _validate(body: JournalEntryIn, db: Session) -> None:
     for line in body.lines:
         if line.debit < 0 or line.credit < 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Importes no pueden ser negativos")
-        account = db.query(Account).filter(Account.id == line.account_id).first()
+        q = db.query(Account).filter(Account.id == line.account_id)
+        if company_id is not None:
+            q = q.filter(Account.company_id == company_id)
+        account = q.first()
         if account is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cuenta no existe")
         if not account.is_detail:
@@ -84,12 +88,13 @@ def add_accepted_entry(
     entry_date: DateType,
     description: str,
     lines: list[JournalLineIn],
+    company_id: int | None = None,
 ) -> JournalEntry:
     """Valida y añade un asiento aceptado a la sesión, sin confirmar la transacción."""
     _validate(
-        JournalEntryIn(date=entry_date, description=description, lines=lines), db
+        JournalEntryIn(date=entry_date, description=description, lines=lines), db, company_id
     )
-    entry = JournalEntry(date=entry_date, description=description, status="accepted")
+    entry = JournalEntry(date=entry_date, description=description, status="accepted", company_id=company_id)
     db.add(entry)
     db.flush()
     for line in lines:
@@ -112,10 +117,11 @@ def create_entry(
     body: JournalEntryIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
-    _validate(body, db)
+    _validate(body, db, company_id)
     entry_status = body.status if body.status is not None else "accepted"
-    entry = JournalEntry(date=body.date, description=body.description, status=entry_status)
+    entry = JournalEntry(date=body.date, description=body.description, status=entry_status, company_id=company_id)
     db.add(entry)
     db.flush()
     for line in body.lines:
@@ -145,8 +151,9 @@ def list_entries(
     to_date: DateType | None = Query(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> list[JournalEntry]:
-    q = db.query(JournalEntry)
+    q = db.query(JournalEntry).filter(JournalEntry.company_id == company_id)
     start = date_from or start_date or from_date
     end = date_to or end_date or to_date
     if start is not None:
@@ -164,15 +171,19 @@ def update_entry(
     body: JournalEntryIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
     if entry.status != "draft":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Solo se pueden editar asientos en borrador")
     # ignore status changes via update; keep draft
     body.status = None
-    _validate(body, db)
+    _validate(body, db, company_id)
     previous_year = entry.date.year
     entry.date = body.date
     entry.description = body.description
@@ -208,8 +219,12 @@ def annul_entry(
     entry_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
     if entry.status != "draft":
@@ -230,8 +245,12 @@ def review_entry(
     entry_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
     if entry.status != "draft":
@@ -255,8 +274,12 @@ def accept_entry(
     entry_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
     if entry.status != "draft":
@@ -272,7 +295,10 @@ def accept_entry(
     total_debit = Decimal("0")
     total_credit = Decimal("0")
     for line in entry.lines:
-        account = db.query(Account).filter(Account.id == line.account_id).first()
+        aq = db.query(Account).filter(Account.id == line.account_id)
+        if company_id is not None:
+            aq = aq.filter(Account.company_id == company_id)
+        account = aq.first()
         if account is None or not account.is_detail:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -301,8 +327,12 @@ def correct_entry(
     body: JournalEntryIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> JournalEntry:
-    original = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    original = q.first()
     if original is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
     if original.status != "accepted":
@@ -310,12 +340,13 @@ def correct_entry(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Solo se pueden corregir asientos aceptados",
         )
-    _validate(body, db)
+    _validate(body, db, company_id)
     entry = JournalEntry(
         date=body.date,
         description=body.description,
         status="accepted",
         correction_of_entry_id=original.id,
+        company_id=company_id if company_id is not None else original.company_id,
     )
     db.add(entry)
     db.flush()
@@ -346,8 +377,12 @@ def delete_entry(
     entry_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> None:
-    entry = db.query(JournalEntry).filter(JournalEntry.id == entry_id).first()
+    q = db.query(JournalEntry).filter(JournalEntry.id == entry_id)
+    if company_id is not None:
+        q = q.filter(JournalEntry.company_id == company_id)
+    entry = q.first()
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no existe")
     if entry.status != "draft":

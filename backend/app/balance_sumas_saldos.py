@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Account, JournalEntry, JournalLine, User
 
@@ -40,6 +41,7 @@ def balance_sumas_saldos(
     date_to: date | None = Query(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> BalanceSumasSaldosOut:
     stmt = (
         db.query(
@@ -52,6 +54,8 @@ def balance_sumas_saldos(
         .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
         .filter(JournalEntry.status == "accepted")
     )
+    if company_id is not None:
+        stmt = stmt.filter(JournalEntry.company_id == company_id, Account.company_id == company_id)
     if date_from is not None:
         stmt = stmt.filter(JournalEntry.date >= date_from)
     if date_to is not None:

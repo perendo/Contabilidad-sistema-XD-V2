@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .journal_entries import JournalLineIn, add_accepted_entry
 from .models import Account, Invoice, ThirdParty, User
@@ -68,6 +69,7 @@ def create_invoice(
     body: InvoiceIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> Invoice:
     third_party = db.query(ThirdParty).filter(ThirdParty.id == body.third_party_id).first()
     if third_party is None:
@@ -127,7 +129,10 @@ def create_invoice(
         ),
     ]
     if irpf_amount > 0:
-        retention_account = db.query(Account).filter(Account.code == "4730").first()
+        raq = db.query(Account).filter(Account.code == "4730")
+        if company_id is not None:
+            raq = raq.filter(Account.company_id == company_id)
+        retention_account = raq.first()
         if retention_account is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -146,12 +151,14 @@ def create_invoice(
         entry_date=body.date,
         description=description,
         lines=lines,
+        company_id=company_id,
     )
 
     invoice = Invoice(
         year=year,
         number=number,
         date=body.date,
+        company_id=company_id,
         third_party_id=third_party.id,
         description=body.description,
         base_amount=body.base_amount,
@@ -179,8 +186,12 @@ def create_invoice(
 def list_invoices(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> list[Invoice]:
-    return db.query(Invoice).order_by(Invoice.year, Invoice.number).all()
+    q = db.query(Invoice)
+    if company_id is not None:
+        q = q.filter(Invoice.company_id == company_id)
+    return q.order_by(Invoice.year, Invoice.number).all()
 
 
 class InvoicePayIn(BaseModel):
@@ -194,8 +205,11 @@ def pay_issued_invoice(
     body: InvoicePayIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> Invoice:
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    iq = db.query(Invoice).filter(Invoice.id == invoice_id)
+    # Invoice has no company_id column yet (added in a later historia); keep lookup by id.
+    invoice = iq.first()
     if invoice is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no existe")
     if invoice.status != "pendiente":
@@ -209,11 +223,12 @@ def pay_issued_invoice(
             detail="Estado no válido para factura emitida",
         )
 
-    treasury_account = (
-        db.query(Account)
-        .filter(Account.type == "Activo", Account.is_detail == True, Account.code.like("57%"))
-        .first()
+    taq = db.query(Account).filter(
+        Account.type == "Activo", Account.is_detail == True, Account.code.like("57%")
     )
+    if company_id is not None:
+        taq = taq.filter(Account.company_id == company_id)
+    treasury_account = taq.first()
     if treasury_account is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -236,6 +251,7 @@ def pay_issued_invoice(
                 credit=invoice.total,
             ),
         ],
+        company_id=company_id,
     )
 
     invoice.status = "cobrada"

@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Account, ThirdParty, User
 
@@ -43,10 +44,14 @@ def create_third_party(
     body: ThirdPartyIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> ThirdParty:
     if body.type not in ALLOWED_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de tercero no válido")
-    account = db.query(Account).filter(Account.id == body.account_id).first()
+    aq = db.query(Account).filter(Account.id == body.account_id)
+    if company_id is not None:
+        aq = aq.filter(Account.company_id == company_id)
+    account = aq.first()
     if account is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subcuenta no existe")
     normalized = _normalize_type(body.type)
@@ -58,6 +63,7 @@ def create_third_party(
         address=body.address,
         phone=body.phone,
         email=body.email,
+        company_id=company_id,
     )
     db.add(tp)
     try:
@@ -76,8 +82,11 @@ def list_third_parties(
     search: str | None = Query(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> list[ThirdParty]:
     q = db.query(ThirdParty)
+    if company_id is not None:
+        q = q.filter(ThirdParty.company_id == company_id)
     if type is not None:
         try:
             norm = _normalize_type(type)

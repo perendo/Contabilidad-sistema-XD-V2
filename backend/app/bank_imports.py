@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import (
     Account,
@@ -202,11 +203,14 @@ def _detect_header_row(rows: list[list[object]]) -> list[str]:
     return [str(v) if v is not None else "" for v in rows[best_index]]
 
 
-def _save_profile(db: Session, iban: str, date_col: str, concept_col: str, amount_col: str) -> BankImportProfile:
-    profile = db.query(BankImportProfile).filter(BankImportProfile.iban == iban).first()
+def _save_profile(db: Session, iban: str, date_col: str, concept_col: str, amount_col: str, company_id: int | None = None) -> BankImportProfile:
+    pq = db.query(BankImportProfile).filter(BankImportProfile.iban == iban)
+    if company_id is not None:
+        pq = pq.filter(BankImportProfile.company_id == company_id)
+    profile = pq.first()
     if profile is None:
         profile = BankImportProfile(
-            iban=iban, date_column=date_col, concept_column=concept_col, amount_column=amount_col
+            iban=iban, date_column=date_col, concept_column=concept_col, amount_column=amount_col, company_id=company_id
         )
         db.add(profile)
     else:
@@ -378,6 +382,7 @@ def import_bank_movements(
     amount_column: str | None = Form(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> BankImportOut:
     content = file.file.read()
     if len(content) > MAX_FILE_SIZE:
@@ -396,7 +401,7 @@ def import_bank_movements(
         iban_norm = re.sub(r"\s+", "", iban).upper()
 
         if date_column and concept_column and amount_column:
-            _save_profile(db, iban_norm, date_column, concept_column, amount_column)
+            _save_profile(db, iban_norm, date_column, concept_column, amount_column, company_id)
             movements = _movements_with_profile(
                 rows, date_column, concept_column, amount_column
             )
@@ -404,11 +409,10 @@ def import_bank_movements(
             try:
                 movements = _movements(rows)
             except HTTPException:
-                profile = (
-                    db.query(BankImportProfile)
-                    .filter(BankImportProfile.iban == iban_norm)
-                    .first()
-                )
+                pq = db.query(BankImportProfile).filter(BankImportProfile.iban == iban_norm)
+                if company_id is not None:
+                    pq = pq.filter(BankImportProfile.company_id == company_id)
+                profile = pq.first()
                 if profile is not None:
                     movements = _movements_with_profile(
                         rows,
@@ -447,9 +451,10 @@ def import_bank_movements(
     else:
         iban, parsed = _parse_norma_43_file(content)
 
-    mapping = (
-        db.query(BankIbanAccount).filter(BankIbanAccount.iban == iban).first()
-    )
+    mq = db.query(BankIbanAccount).filter(BankIbanAccount.iban == iban)
+    if company_id is not None:
+        mq = mq.filter(BankIbanAccount.company_id == company_id)
+    mapping = mq.first()
 
     if account_id is None:
         if mapping is None:
@@ -459,7 +464,10 @@ def import_bank_movements(
             )
         bank = mapping.account
     else:
-        bank = db.query(Account).filter(Account.id == account_id).first()
+        bank = db.query(Account).filter(Account.id == account_id)
+        if company_id is not None:
+            bank = bank.filter(Account.company_id == company_id)
+        bank = bank.first()
         if bank is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Cuenta no existe"
@@ -476,7 +484,10 @@ def import_bank_movements(
             detail=f"La cuenta {bank.code} no es una subcuenta de detalle",
         )
 
-    suspense = db.query(Account).filter(Account.code == SUSPENSE_CODE).first()
+    sq = db.query(Account).filter(Account.code == SUSPENSE_CODE)
+    if company_id is not None:
+        sq = sq.filter(Account.company_id == company_id)
+    suspense = sq.first()
     if suspense is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -486,7 +497,7 @@ def import_bank_movements(
     entries: list[JournalEntry] = []
     try:
         if mapping is None:
-            db.add(BankIbanAccount(iban=iban, account_id=bank.id))
+            db.add(BankIbanAccount(iban=iban, account_id=bank.id, company_id=company_id))
         elif mapping.account_id != bank.id:
             mapping.account_id = bank.id
 
@@ -495,6 +506,7 @@ def import_bank_movements(
                 date=entry_date,
                 description=concept,
                 status="draft",
+                company_id=company_id,
             )
             db.add(entry)
             db.flush()
@@ -546,9 +558,10 @@ def save_bank_import_profile(
     payload: BankImportProfileIn,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> BankImportProfileOut:
     iban = re.sub(r"\s+", "", payload.iban).upper()
-    profile = _save_profile(db, iban, payload.date_column, payload.concept_column, payload.amount_column)
+    profile = _save_profile(db, iban, payload.date_column, payload.concept_column, payload.amount_column, company_id)
     return BankImportProfileOut(
         iban=profile.iban,
         date_column=profile.date_column,

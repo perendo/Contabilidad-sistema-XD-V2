@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Account, JournalEntry, JournalLine, User
 
@@ -44,8 +45,12 @@ def extracto_cuenta(
     date_to: date | None = Query(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> ExtractoCuentaOut:
-    account = db.query(Account).filter(Account.id == account_id).first()
+    aq = db.query(Account).filter(Account.id == account_id)
+    if company_id is not None:
+        aq = aq.filter(Account.company_id == company_id)
+    account = aq.first()
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no existe")
 

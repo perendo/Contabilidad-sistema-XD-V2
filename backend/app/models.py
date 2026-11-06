@@ -26,9 +26,11 @@ class Company(Base):
 
 class Account(Base):
     __tablename__ = "accounts"
+    __table_args__ = (UniqueConstraint("company_id", "code", name="uq_accounts_company_code"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
+    code: Mapped[str] = mapped_column(String(50), index=True)
     name: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(50))
     level: Mapped[int] = mapped_column()
@@ -43,6 +45,7 @@ class BankIbanAccount(Base):
     __tablename__ = "bank_iban_accounts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     iban: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
 
@@ -53,6 +56,7 @@ class BankImportProfile(Base):
     __tablename__ = "bank_import_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     iban: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     date_column: Mapped[str] = mapped_column(String(255))
     concept_column: Mapped[str] = mapped_column(String(255))
@@ -63,6 +67,7 @@ class JournalEntry(Base):
     __tablename__ = "journal_entries"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     date: Mapped[date] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(20), default="accepted")
@@ -103,6 +108,7 @@ class ThirdParty(Base):
     __tablename__ = "third_parties"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), unique=True)
     name: Mapped[str] = mapped_column(String(255))
     tax_id: Mapped[str] = mapped_column(String(50))
@@ -119,6 +125,7 @@ class Invoice(Base):
     __table_args__ = (UniqueConstraint("year", "number", name="uq_invoices_year_number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     year: Mapped[int] = mapped_column()
     number: Mapped[int] = mapped_column()
     date: Mapped[date] = mapped_column(Date)
@@ -146,6 +153,7 @@ class ReceivedInvoice(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     date: Mapped[date] = mapped_column(Date)
     third_party_id: Mapped[int] = mapped_column(ForeignKey("third_parties.id"))
     supplier_number: Mapped[str] = mapped_column(String(100))

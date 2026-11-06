@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
-from app.models import User
+from app.models import Company, User
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
@@ -27,6 +27,9 @@ def _seed_user():
         if not db.query(User).filter(User.email == TEST_EMAIL).first():
             hashed = bcrypt.hashpw(TEST_PASSWORD.encode(), bcrypt.gensalt()).decode()
             db.add(User(email=TEST_EMAIL, password_hash=hashed))
+            db.commit()
+        if not db.query(Company).first():
+            db.add(Company(name="Empresa Test", tax_id="B00000000", address="", fiscal_year="2026"))
             db.commit()
     finally:
         db.close()
@@ -51,5 +54,7 @@ def client():
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    client = TestClient(app)
+    client.cookies.set("active_company_id", "1")
+    yield client
     app.dependency_overrides.clear()

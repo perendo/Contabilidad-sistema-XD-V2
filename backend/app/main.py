@@ -6,7 +6,7 @@ from .cuenta_perdidas_ganancias import router as cuenta_perdidas_ganancias_route
 from .documents import router as documents_router
 from .extracto_cuenta import router as extracto_cuenta_router
 from .auth import router as auth_router
-from .company import router as company_router
+from .company import companies_router, router as company_router
 from .invoices import router as invoices_router
 from .irpf_summary import router as irpf_summary_router
 from .iva_liquidation import router as iva_liquidation_router
@@ -40,6 +40,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(company_router)
+app.include_router(companies_router)
 app.include_router(accounts_router)
 app.include_router(cuenta_perdidas_ganancias_router)
 app.include_router(extracto_cuenta_router)
