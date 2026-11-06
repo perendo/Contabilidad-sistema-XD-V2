@@ -1,6 +1,7 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const AUTH_COOKIE = "auth_session";
+const ACTIVE_COMPANY_KEY = "active_company_id";
 
 /**
  * Normaliza cualquier error capturado a un mensaje legible.
@@ -41,11 +42,29 @@ export async function clearSession(): Promise<void> {
   }
 }
 
+export function getActiveCompanyId(): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(ACTIVE_COMPANY_KEY);
+}
+
+export function setActiveCompanyId(id: number | string | null): void {
+  if (typeof window === "undefined") return;
+  if (id === null || id === undefined) {
+    sessionStorage.removeItem(ACTIVE_COMPANY_KEY);
+  } else {
+    sessionStorage.setItem(ACTIVE_COMPANY_KEY, String(id));
+  }
+}
+
 export async function api(path: string, init: RequestInit = {}) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
+  const activeCompanyId = getActiveCompanyId();
+  if (activeCompanyId) {
+    headers["X-Company-Id"] = activeCompanyId;
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,

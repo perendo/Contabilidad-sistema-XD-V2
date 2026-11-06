@@ -417,7 +417,7 @@
   },
   {
     "codigo": "70",
-    "nombre": "Ventas de mercaderías, de producción propia, de servicios, etc.",
+    "nombre": "Ventas de mercaderías, de producción, de servicios, etc.",
     "nivel": 2,
     "codigo_padre": "7",
     "tipo": "ingreso",
@@ -485,6 +485,182 @@
     "nivel": 4,
     "codigo_padre": "475",
     "tipo": "pasivo",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "8",
+    "nombre": "Gastos imputados al patrimonio neto",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "80",
+    "nombre": "Gastos financieros por valoración de activos financieros",
+    "nivel": 2,
+    "codigo_padre": "8",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "800",
+    "nombre": "Pérdidas en activos financieros disponibles para la venta",
+    "nivel": 3,
+    "codigo_padre": "80",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "801",
+    "nombre": "Transferencia de beneficios en activos financieros disponibles para la venta",
+    "nivel": 3,
+    "codigo_padre": "80",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "81",
+    "nombre": "Gastos en operaciones de cobertura",
+    "nivel": 2,
+    "codigo_padre": "8",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "810",
+    "nombre": "Pérdidas por coberturas de flujos de efectivo",
+    "nivel": 3,
+    "codigo_padre": "81",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "811",
+    "nombre": "Pérdidas por coberturas de inversiones netas en un negocio en el extranjero",
+    "nivel": 3,
+    "codigo_padre": "81",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "812",
+    "nombre": "Transferencia de beneficios por coberturas de flujos de efectivo",
+    "nivel": 3,
+    "codigo_padre": "81",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "813",
+    "nombre": "Transferencia de beneficios por coberturas de inversiones netas en un negocio en el extranjero",
+    "nivel": 3,
+    "codigo_padre": "81",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "82",
+    "nombre": "Gastos por diferencias de conversión",
+    "nivel": 2,
+    "codigo_padre": "8",
+    "tipo": "gasto",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "820",
+    "nombre": "Gastos por diferencias de conversión",
+    "nivel": 3,
+    "codigo_padre": "82",
+    "tipo": "gasto",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "9",
+    "nombre": "Ingresos imputados al patrimonio neto",
+    "nivel": 1,
+    "codigo_padre": null,
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "90",
+    "nombre": "Ingresos financieros por valoración de activos financieros",
+    "nivel": 2,
+    "codigo_padre": "9",
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "900",
+    "nombre": "Beneficios en activos financieros disponibles para la venta",
+    "nivel": 3,
+    "codigo_padre": "90",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "901",
+    "nombre": "Transferencia de pérdidas de activos financieros disponibles para la venta",
+    "nivel": 3,
+    "codigo_padre": "90",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "91",
+    "nombre": "Ingresos en operaciones de cobertura",
+    "nivel": 2,
+    "codigo_padre": "9",
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "910",
+    "nombre": "Beneficios por coberturas de flujos de efectivo",
+    "nivel": 3,
+    "codigo_padre": "91",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "911",
+    "nombre": "Beneficios por coberturas de una inversión neta en un negocio en el extranjero",
+    "nivel": 3,
+    "codigo_padre": "91",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "912",
+    "nombre": "Transferencia de pérdidas por coberturas de flujos de efectivo",
+    "nivel": 3,
+    "codigo_padre": "91",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "913",
+    "nombre": "Transferencia de pérdidas por coberturas de una inversión neta en un negocio en el extranjero",
+    "nivel": 3,
+    "codigo_padre": "91",
+    "tipo": "ingreso",
+    "es_cuenta_registro": true
+  },
+  {
+    "codigo": "92",
+    "nombre": "Ingresos por diferencias de conversión",
+    "nivel": 2,
+    "codigo_padre": "9",
+    "tipo": "ingreso",
+    "es_cuenta_registro": false
+  },
+  {
+    "codigo": "920",
+    "nombre": "Ingresos por diferencias de conversión",
+    "nivel": 3,
+    "codigo_padre": "92",
+    "tipo": "ingreso",
     "es_cuenta_registro": true
   }
 ]
