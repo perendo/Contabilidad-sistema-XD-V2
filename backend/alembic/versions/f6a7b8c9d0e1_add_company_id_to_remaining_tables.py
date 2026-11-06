@@ -1,6 +1,6 @@
 """add company_id to remaining data tables
 
-Revision ID: e5f6a7b8c9d0
+Revision ID: f6a7b8c9d0e1
 Revises: d4e5f6a7b8c9
 Create Date: 2026-11-06 00:00:00.000000
 
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = 'e5f6a7b8c9d0'
+revision: str = 'f6a7b8c9d0e1'
 down_revision: Union[str, None] = 'd4e5f6a7b8c9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

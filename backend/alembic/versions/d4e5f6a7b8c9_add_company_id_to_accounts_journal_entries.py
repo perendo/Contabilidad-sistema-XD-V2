@@ -17,53 +17,107 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _index_names(table: str) -> set[str]:
+    return {index['name'] for index in sa.inspect(op.get_bind()).get_indexes(table)}
+
+
+def _unique_names(table: str) -> set[str]:
+    return {
+        constraint['name']
+        for constraint in sa.inspect(op.get_bind()).get_unique_constraints(table)
+    }
+
+
 def upgrade() -> None:
     inspector = sa.inspect(op.get_bind())
     if not inspector.has_table('accounts'):
         return
+
     # accounts: add company_id
     if 'company_id' not in [c['name'] for c in inspector.get_columns('accounts')]:
         op.add_column('accounts', sa.Column('company_id', sa.Integer(), nullable=True))
-        op.create_foreign_key('fk_accounts_company_id', 'accounts', 'companies', ['company_id'], ['id'])
+        op.create_foreign_key(
+            'fk_accounts_company_id',
+            'accounts',
+            'companies',
+            ['company_id'],
+            ['id'],
+        )
         op.create_index('ix_accounts_company_id', 'accounts', ['company_id'])
-    # drop old unique index on code, add composite unique (company_id, code)
-    try:
+
+    # Replace the old unique code constraint/index with (company_id, code).
+    if 'ix_accounts_code' in _index_names('accounts'):
         op.drop_index('ix_accounts_code', table_name='accounts')
-    except Exception:
-        pass
-    try:
+    if 'accounts_code_key' in _unique_names('accounts'):
         op.drop_constraint('accounts_code_key', 'accounts', type_='unique')
-    except Exception:
-        pass
-    try:
-        op.create_unique_constraint('uq_accounts_company_code', 'accounts', ['company_id', 'code'])
-    except Exception:
-        pass
+    if 'uq_accounts_company_code' not in _unique_names('accounts'):
+        op.create_unique_constraint(
+            'uq_accounts_company_code', 'accounts', ['company_id', 'code']
+        )
+    if 'ix_accounts_code' not in _index_names('accounts'):
+        op.create_index('ix_accounts_code', 'accounts', ['code'])
+
     # journal_entries: add company_id
+    inspector = sa.inspect(op.get_bind())
     if inspector.has_table('journal_entries'):
-        if 'company_id' not in [c['name'] for c in inspector.get_columns('journal_entries')]:
-            op.add_column('journal_entries', sa.Column('company_id', sa.Integer(), nullable=True))
-            op.create_foreign_key('fk_journal_entries_company_id', 'journal_entries', 'companies', ['company_id'], ['id'])
-            op.create_index('ix_journal_entries_company_id', 'journal_entries', ['company_id'])
+        if 'company_id' not in [
+            c['name'] for c in inspector.get_columns('journal_entries')
+        ]:
+            op.add_column(
+                'journal_entries',
+                sa.Column('company_id', sa.Integer(), nullable=True),
+            )
+            op.create_foreign_key(
+                'fk_journal_entries_company_id',
+                'journal_entries',
+                'companies',
+                ['company_id'],
+                ['id'],
+            )
+            op.create_index(
+                'ix_journal_entries_company_id', 'journal_entries', ['company_id']
+            )
 
 
 def downgrade() -> None:
     inspector = sa.inspect(op.get_bind())
     if inspector.has_table('journal_entries'):
-        if 'company_id' in [c['name'] for c in inspector.get_columns('journal_entries')]:
-            op.drop_index('ix_journal_entries_company_id', table_name='journal_entries')
-            op.drop_constraint('fk_journal_entries_company_id', 'journal_entries', type_='foreignkey')
+        columns = [c['name'] for c in inspector.get_columns('journal_entries')]
+        if 'company_id' in columns:
+            if 'ix_journal_entries_company_id' in _index_names('journal_entries'):
+                op.drop_index(
+                    'ix_journal_entries_company_id', table_name='journal_entries'
+                )
+            if 'fk_journal_entries_company_id' in {
+                fk['name']
+                for fk in sa.inspect(op.get_bind()).get_foreign_keys(
+                    'journal_entries'
+                )
+            }:
+                op.drop_constraint(
+                    'fk_journal_entries_company_id',
+                    'journal_entries',
+                    type_='foreignkey',
+                )
             op.drop_column('journal_entries', 'company_id')
+
+    inspector = sa.inspect(op.get_bind())
     if inspector.has_table('accounts'):
-        if 'company_id' in [c['name'] for c in inspector.get_columns('accounts')]:
-            try:
-                op.drop_constraint('uq_accounts_company_code', 'accounts', type_='unique')
-            except Exception:
-                pass
-            try:
-                op.create_unique_constraint('accounts_code_key', 'accounts', ['code'])
-            except Exception:
-                pass
-            op.drop_index('ix_accounts_company_id', table_name='accounts')
-            op.drop_constraint('fk_accounts_company_id', 'accounts', type_='foreignkey')
+        columns = [c['name'] for c in inspector.get_columns('accounts')]
+        if 'company_id' in columns:
+            if 'uq_accounts_company_code' in _unique_names('accounts'):
+                op.drop_constraint(
+                    'uq_accounts_company_code', 'accounts', type_='unique'
+                )
+            if 'ix_accounts_company_id' in _index_names('accounts'):
+                op.drop_index('ix_accounts_company_id', table_name='accounts')
+            if 'fk_accounts_company_id' in {
+                fk['name'] for fk in sa.inspect(op.get_bind()).get_foreign_keys('accounts')
+            }:
+                op.drop_constraint(
+                    'fk_accounts_company_id', 'accounts', type_='foreignkey'
+                )
             op.drop_column('accounts', 'company_id')
+        if 'ix_accounts_code' in _index_names('accounts'):
+            op.drop_index('ix_accounts_code', table_name='accounts')
+        op.create_index('ix_accounts_code', 'accounts', ['code'], unique=True)

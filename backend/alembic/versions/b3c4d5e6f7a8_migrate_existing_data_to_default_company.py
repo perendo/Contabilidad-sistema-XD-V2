@@ -1,7 +1,7 @@
 """migrate existing data to a default company
 
 Revision ID: b3c4d5e6f7a8
-Revises: f3a9c1d2e4b7
+Revises: f6a7b8c9d0e1
 Create Date: 2026-11-06 00:00:00.000000
 
 """
@@ -16,7 +16,7 @@ from app.company_migration import migrate_existing_to_default_company
 
 
 revision: str = "b3c4d5e6f7a8"
-down_revision: Union[str, None] = "f3a9c1d2e4b7"
+down_revision: Union[str, None] = "f6a7b8c9d0e1"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
