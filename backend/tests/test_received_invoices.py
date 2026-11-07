@@ -1520,3 +1520,66 @@ def test_no_auto_register_third_party_not_exists_opens_form(client):
     assert client.get("/journal-entries", headers=headers).json() == before_entries
     assert client.get("/received-invoices", headers=headers).json() == before_invoices
     assert client.get("/third-parties", headers=headers).json() == before_thirds
+def test_reject_pending_invoice_marks_rejected_no_entry(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral bajo (100.00)
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "100.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    client.post(
+        "/accounts",
+        json={"code": "6021", "name": "Gasto test rechazo", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4730", "name": "IVA soportado test rechazo", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Rechazo SL\n"
+        "NIF: B44444444\n"
+        "Factura: F-REJ-001\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 1
+    pending_id = pending[0]["id"]
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        f"/received-invoices/pending/{pending_id}/reject",
+        data={"motivo": "Factura duplicada, no se aprueba"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    # el pendiente quedó marcado como rechazado
+    pending_after = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending_after) == 0
+
+    # no se creó factura ni asiento
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices

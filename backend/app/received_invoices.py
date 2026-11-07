@@ -10,6 +10,7 @@ from datetime import datetime as DateTime
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -18,9 +19,18 @@ from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
 from .invoices import ALLOWED_VAT_RATES, CENT
-from .document_storage import build_file_path, documents_root, write_document
+from .document_storage import build_file_path, documents_root, read_document, resolve_path, write_document
 from .journal_entries import JournalLineIn, add_accepted_entry
-from .models import Account, Company, Document, JournalEntry, ReceivedInvoice, ThirdParty, User
+from .models import (
+    Account,
+    Company,
+    Document,
+    JournalEntry,
+    ReceivedInvoice,
+    ReceivedInvoicePending,
+    ThirdParty,
+    User,
+)
 
 router = APIRouter(tags=["received-invoices"])
 
@@ -101,6 +111,21 @@ class ExtractedDataOut(BaseModel):
     auto_registered: bool = False
     invoice_id: int | None = None
     entry_id: int | None = None
+
+
+class ReceivedInvoicePendingOut(BaseModel):
+    id: int
+    supplier_number: str
+    date: DateType
+    base: float = Field(validation_alias=AliasChoices("base", "base_amount"))
+    vat_rate: float
+    total: float | None
+    third_party_name: str | None
+    third_party_tax_id: str | None
+    reason: str
+    status: str
+    filename: str
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/received-invoices/extract", status_code=status.HTTP_200_OK)
@@ -224,6 +249,46 @@ def extract_received_invoice(
             auto_registered = True
             invoice_id = invoice.id
             entry_id = invoice.entry_id
+
+    if not auto_registered:
+        if warnings:
+            reason = "; ".join(warnings)
+        elif company_id is not None and total is not None:
+            company = db.query(Company).filter(Company.id == company_id).first()
+            threshold = company.approval_threshold if company else None
+            if threshold is not None and total >= threshold:
+                reason = f"Total {total} supera el umbral de aprobación {threshold}"
+            else:
+                reason = "Requiere aprobación manual"
+        else:
+            reason = "Requiere aprobación manual"
+
+        suffix = Path(filename).suffix.lower()
+        pending_dir = f"pending/{company_id}" if company_id else "pending"
+        file_name = f"{uuid4().hex}{suffix}"
+        relative_path = f"{pending_dir}/{file_name}"
+        write_document(relative_path, content)
+
+        pending = ReceivedInvoicePending(
+            company_id=company_id,
+            third_party_name=data.get("name"),
+            third_party_tax_id=data.get("nif"),
+            supplier_number=data["number"],
+            date=data["date"],
+            base_amount=data["base"],
+            vat_rate=data["vat_rate"],
+            vat_amount=vat_amount,
+            total=total,
+            expense_account_id=expense_account_id,
+            status="pendiente",
+            reason=reason,
+            file_path=relative_path,
+            content_type=media_type,
+            filename=filename,
+        )
+        db.add(pending)
+        db.commit()
+        db.refresh(pending)
 
     temp_file_id = uuid4().hex
     suffix = Path(filename).suffix.lower()
@@ -498,6 +563,128 @@ def list_received_invoices(
     if company_id is not None:
         q = q.filter(ReceivedInvoice.company_id == company_id)
     return q.order_by(ReceivedInvoice.date, ReceivedInvoice.id).all()
+
+
+@router.get("/received-invoices/pending", response_model=list[ReceivedInvoicePendingOut])
+def list_pending_invoices(
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> list[ReceivedInvoicePending]:
+    q = db.query(ReceivedInvoicePending).filter(
+        ReceivedInvoicePending.status == "pendiente"
+    )
+    if company_id is not None:
+        q = q.filter(ReceivedInvoicePending.company_id == company_id)
+    return q.order_by(ReceivedInvoicePending.created_at.desc()).all()
+
+
+@router.get("/received-invoices/pending/{pending_id}/document")
+def get_pending_document(
+    pending_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+):
+    pending = db.query(ReceivedInvoicePending).filter(ReceivedInvoicePending.id == pending_id).first()
+    if pending is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+    if company_id is not None and pending.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+    path = resolve_path(pending.file_path)
+    return FileResponse(
+        path,
+        media_type=pending.content_type,
+        filename=pending.filename,
+    )
+
+
+@router.post(
+    "/received-invoices/pending/{pending_id}/approve",
+    response_model=ReceivedInvoiceOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def approve_pending_invoice(
+    pending_id: int,
+    third_party_id: int = Form(...),
+    expense_account_id: int = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> ReceivedInvoiceOut:
+    pending = db.query(ReceivedInvoicePending).filter(ReceivedInvoicePending.id == pending_id).first()
+    if pending is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+    if pending.status != "pendiente":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La factura pendiente ya fue procesada")
+    if company_id is not None and pending.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+
+    supplier = db.query(ThirdParty).filter(ThirdParty.id == third_party_id).first()
+    if supplier is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tercero no existe")
+    if supplier.type.strip().lower() != "proveedor":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El tercero no es un proveedor")
+
+    expense_account = db.query(Account).filter(Account.id == expense_account_id).first()
+    if expense_account is None or expense_account.type != "Gasto" or not expense_account.is_detail:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La cuenta de gasto no es válida")
+
+    body = ReceivedInvoiceIn(
+        date=pending.date,
+        third_party_id=third_party_id,
+        supplier_number=pending.supplier_number,
+        description="",
+        base_amount=pending.base_amount,
+        vat_rate=pending.vat_rate,
+        expense_account_id=expense_account_id,
+    )
+    try:
+        invoice = create_received_invoice(body, user, db, company_id=company_id)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    entry = db.query(JournalEntry).filter(JournalEntry.id == invoice.entry_id).first()
+    content = read_document(pending.file_path)
+    attach_document_to_entry(db, entry, pending.filename, pending.content_type, content)
+
+    pending.status = "aprobado"
+    db.add(pending)
+    db.commit()
+
+    db.refresh(invoice)
+    return invoice
+
+
+@router.post(
+    "/received-invoices/pending/{pending_id}/reject",
+    status_code=status.HTTP_200_OK,
+)
+def reject_pending_invoice(
+    pending_id: int,
+    motivo: str = Form(...),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> dict:
+    pending = db.query(ReceivedInvoicePending).filter(ReceivedInvoicePending.id == pending_id).first()
+    if pending is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+    if pending.status != "pendiente":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La factura pendiente ya fue procesada")
+    if company_id is not None and pending.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+
+    pending.status = "rechazado"
+    pending.reason = motivo
+    db.add(pending)
+    db.commit()
+
+    return {"status": "rechazado", "motivo": motivo}
 
 
 class ReceivedInvoicePayIn(BaseModel):

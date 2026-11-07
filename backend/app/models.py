@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from sqlalchemy import Date, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -195,3 +195,31 @@ class JournalLine(Base):
 
     entry: Mapped["JournalEntry"] = relationship("JournalEntry", back_populates="lines")
     account: Mapped["Account"] = relationship("Account")
+
+
+class ReceivedInvoicePending(Base):
+    __tablename__ = "received_invoice_pending"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id"), nullable=True, index=True
+    )
+    third_party_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    third_party_tax_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    supplier_number: Mapped[str] = mapped_column(String(100))
+    date: Mapped[date] = mapped_column(Date)
+    base_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    vat_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    expense_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pendiente")
+    reason: Mapped[str] = mapped_column(String(500), default="")
+    file_path: Mapped[str] = mapped_column(String(500))
+    content_type: Mapped[str] = mapped_column(String(255), default="application/octet-stream")
+    filename: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
+
+    company: Mapped["Company | None"] = relationship("Company")
