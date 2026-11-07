@@ -54,6 +54,23 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 43. [x] Como administrador, quiero que las aprobaciones pendientes se conserven al cerrar sesión o reiniciar el sistema, para no perder trabajo. Requiere: #41
 44. [x] Como administrador, quiero poder rechazar una factura propuesta indicando el motivo, para corregirla o descartarla. Requiere: #41
 
+45. [x] Como administrador, quiero que el sistema valide mi membresía a una empresa para que no pueda acceder a datos de otras empresas.
+46. [ ] Como administrador, quiero gestionar usuarios y asignar roles y sociedades para controlar quién puede acceder a cada empresa.
+47. [ ] Como administrador, quiero que el sistema valide contraseñas y proteja contra ataques de fuerza bruta y temporización para evitar el acceso no autorizado.
+48. [ ] Como administrador, quiero que los archivos subidos (PDF, imagen, XML) se procesen de forma segura para evitar ataques de inyección o descompresión.
+49. [ ] Como administrador, quiero que el procesamiento de facturas escaneadas se realice de forma asíncrona para no bloquear el servidor.
+50. [ ] Como administrador, quiero que la numeración de facturas sea correlativa y aislada por empresa para cumplir con la normativa tributaria.
+51. [ ] Como desarrollador backend, quiero que las consultas a la base de datos usen joins eficientes y agregación SQL para evitar problemas de rendimiento.
+52. [ ] Como administrador, quiero que los listados de datos estén paginados para evitar el colapso del servidor y del frontend.
+53. [ ] Como desarrollador backend, quiero que el código esté organizado en capas separadas (rutas, servicios, repositorios) para facilitar el mantenimiento y la seguridad.
+54. [ ] Como administrador, quiero que los importes contables se manejen con precisión decimal para evitar errores en informes fiscales.
+55. [ ] Como desarrollador frontend, quiero que la interfaz tenga componentes reutilizables y manejo de errores adecuado para facilitar el mantenimiento.
+56. [ ] Como desarrollador frontend, quiero que CORS permita el encabezado X-Company-Id para evitar errores en llamadas entre dominios.
+57. [ ] Como administrador, quiero que el sistema mantenga un registro inalterable de auditoría para cumplir con la Ley Antifraude y Veri*factu. Requiere: #45.
+58. [ ] Como administrador, quiero que el informe de Pérdidas y Ganancias siga la estructura del PGC español para cumplir con la normativa contable.
+59. [ ] Como administrador, quiero que el extracto de cuenta muestre el saldo inicial correcto para tener una visión real de mis finanzas.
+60. [ ] Como administrador, quiero que el Modelo 347 tenga desglose trimestral y excluya facturas con retención de IRPF para cumplir con la AEAT. Requiere: #45.
+
 ## Automatización de facturas con agente (nuevo epic)
 
 Sistema contable single-tenant con varias sociedades, en español y EUR. Se añade un flujo de automatización de facturas recibidas con OCR/LLM y aprobación humana antes de registrar operaciones irreversibles.
