@@ -1,8 +1,9 @@
-from sqlalchemy import or_
+import calendar
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
@@ -39,6 +40,74 @@ class IRPFSummaryOut(BaseModel):
     facturas_recibidas_count: int
 
 
+def _quarter_dates(year: int, quarter: int) -> tuple[date, date]:
+    start_month, end_month = QUARTER_MONTHS[quarter]
+    date_from = date(year, start_month, 1)
+    if end_month == 2:
+        date_to = date(year, end_month, calendar.monthrange(year, end_month)[1])
+    elif end_month in (4, 6, 9, 11):
+        date_to = date(year, end_month, 30)
+    else:
+        date_to = date(year, end_month, 31)
+    return date_from, date_to
+
+
+def _irpf_totals(
+    db: Session,
+    model,
+    company_id: int | None,
+    date_from: date,
+    date_to: date,
+) -> tuple[Decimal, Decimal, int]:
+    base, retention, count = (
+        db.query(
+            func.coalesce(func.sum(model.base_amount), 0),
+            func.coalesce(func.sum(model.irpf_amount), 0),
+            func.count(model.id),
+        )
+        .filter(
+            model.company_id == company_id,
+            or_(model.irpf_rate.isnot(None), model.irpf_amount > 0),
+            model.date >= date_from,
+            model.date <= date_to,
+        )
+        .one()
+    )
+    return Decimal(str(base)), Decimal(str(retention)), int(count)
+
+
+def compute_irpf(
+    db: Session,
+    year: int,
+    quarter: int,
+    company_id: int | None = None,
+) -> dict:
+    date_from, date_to = _quarter_dates(year, quarter)
+    base_recibidas, retenciones_practicadas, count_recibidas = _irpf_totals(
+        db, ReceivedInvoice, company_id, date_from, date_to
+    )
+    base_emitidas, retenciones_soportadas, count_emitidas = _irpf_totals(
+        db, Invoice, company_id, date_from, date_to
+    )
+
+    return {
+        "year": year,
+        "quarter": quarter,
+        "date_from": date_from,
+        "date_to": date_to,
+        "modelo_111": {
+            "base": float(base_recibidas),
+            "retenciones_a_ingresar": float(retenciones_practicadas),
+        },
+        "pagos_a_cuenta_130": {
+            "base": float(base_emitidas),
+            "retenciones_soportadas": float(retenciones_soportadas),
+        },
+        "facturas_emitidas_count": count_emitidas,
+        "facturas_recibidas_count": count_recibidas,
+    }
+
+
 @router.get("/irpf-summary", response_model=IRPFSummaryOut, status_code=status.HTTP_200_OK)
 def irpf_summary(
     year: int = Query(...),
@@ -47,55 +116,12 @@ def irpf_summary(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> IRPFSummaryOut:
-    start_month, end_month = QUARTER_MONTHS[quarter]
-    date_from = date(year, start_month, 1)
-    import calendar
-    if end_month == 2:
-        date_to = date(year, end_month, calendar.monthrange(year, end_month)[1])
-    elif end_month in (4, 6, 9, 11):
-        date_to = date(year, end_month, 30)
-    else:
-        date_to = date(year, end_month, 31)
-
-    q_emitidas = db.query(Invoice).filter(
-        Invoice.company_id == company_id,
-        or_(Invoice.irpf_rate.isnot(None), Invoice.irpf_amount > 0),
-        Invoice.date >= date_from,
-        Invoice.date <= date_to,
-    )
-    q_recibidas = db.query(ReceivedInvoice).filter(
-        ReceivedInvoice.company_id == company_id,
-        or_(ReceivedInvoice.irpf_rate.isnot(None), ReceivedInvoice.irpf_amount > 0),
-        ReceivedInvoice.date >= date_from,
-        ReceivedInvoice.date <= date_to,
-    )
-
-    emitidas = q_emitidas.all()
-    recibidas = q_recibidas.all()
-
-    # Retenciones practicadas a proveedores/profesionales (a ingresar -> Modelo 111/115)
-    base_recibidas = sum((inv.base_amount for inv in recibidas), Decimal("0"))
-    retenciones_practicadas = sum(
-        (inv.irpf_amount or Decimal("0") for inv in recibidas), Decimal("0")
-    )
-
-    # Retenciones soportadas por clientes (pagos a cuenta -> Modelo 130/200)
-    base_emitidas = sum((inv.base_amount for inv in emitidas), Decimal("0"))
-    retenciones_soportadas = sum(
-        (inv.irpf_amount or Decimal("0") for inv in emitidas), Decimal("0")
-    )
-
+    data = compute_irpf(db, year, quarter, company_id)
     return IRPFSummaryOut(
-        year=year,
-        quarter=quarter,
-        modelo_111=Modelo111Summary(
-            base=float(base_recibidas),
-            retenciones_a_ingresar=float(retenciones_practicadas),
-        ),
-        pagos_a_cuenta_130=PagosACuenta130Summary(
-            base=float(base_emitidas),
-            retenciones_soportadas=float(retenciones_soportadas),
-        ),
-        facturas_emitidas_count=len(emitidas),
-        facturas_recibidas_count=len(recibidas),
+        year=data["year"],
+        quarter=data["quarter"],
+        modelo_111=Modelo111Summary(**data["modelo_111"]),
+        pagos_a_cuenta_130=PagosACuenta130Summary(**data["pagos_a_cuenta_130"]),
+        facturas_emitidas_count=data["facturas_emitidas_count"],
+        facturas_recibidas_count=data["facturas_recibidas_count"],
     )

@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .auth import get_current_user
 from .company_context import active_company_id_dep
@@ -56,6 +56,7 @@ def extracto_cuenta(
 
     q = (
         db.query(JournalLine)
+        .options(joinedload(JournalLine.entry))
         .join(JournalEntry)
         .filter(
             JournalLine.account_id == account_id,

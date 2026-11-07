@@ -865,3 +865,50 @@ def test_correction_entry_records_the_author(client):
 
     assert correction.status_code == 201
     assert correction.json()["author"] == "corrector@example.com"
+
+
+def test_journal_entries_list_uses_constant_queries(client, count_queries):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    acc_debit = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_credit = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    def create_entry(day):
+        return client.post(
+            "/journal-entries",
+            json={
+                "date": f"2026-03-{day:02d}",
+                "description": f"Asiento {day}",
+                "lines": [
+                    {"account_id": acc_debit["id"], "description": "D", "debit": 10, "credit": 0},
+                    {"account_id": acc_credit["id"], "description": "H", "debit": 0, "credit": 10},
+                ],
+            },
+            headers=headers,
+        )
+
+    assert create_entry(10).status_code == 201
+
+    def measure():
+        with count_queries() as statements:
+            response = client.get("/journal-entries", headers=headers)
+        assert response.status_code == 200
+        return response, statements
+
+    _, small = measure()
+
+    for day in range(11, 15):
+        assert create_entry(day).status_code == 201
+
+    response, large = measure()
+
+    assert len(large) == len(small)
+    assert len(response.json()) == 5

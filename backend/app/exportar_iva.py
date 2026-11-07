@@ -1,7 +1,6 @@
 import csv
 import io
 from datetime import date
-from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -9,11 +8,10 @@ from sqlalchemy.orm import Session
 from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
-from .models import Invoice, ReceivedInvoice, User
+from .iva_liquidation import compute_iva
+from .models import User
 
 router = APIRouter(tags=["exportar-iva"])
-
-VAT_RATES = [Decimal("21"), Decimal("10"), Decimal("4"), Decimal("0")]
 
 
 def _sanitize_cell(val):
@@ -21,47 +19,6 @@ def _sanitize_cell(val):
     if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
         return "'" + s
     return s
-
-
-def _compute_iva(db: Session, date_from: date | None, date_to: date | None, company_id: int | None = None):
-    q_emitidas = db.query(Invoice).filter(Invoice.company_id == company_id)
-    q_recibidas = db.query(ReceivedInvoice).filter(ReceivedInvoice.company_id == company_id)
-    if date_from is not None:
-        q_emitidas = q_emitidas.filter(Invoice.date >= date_from)
-        q_recibidas = q_recibidas.filter(ReceivedInvoice.date >= date_from)
-    if date_to is not None:
-        q_emitidas = q_emitidas.filter(Invoice.date <= date_to)
-        q_recibidas = q_recibidas.filter(ReceivedInvoice.date <= date_to)
-
-    emitidas = q_emitidas.all()
-    recibidas = q_recibidas.all()
-
-    iva_devengado = sum((inv.vat_amount for inv in emitidas), Decimal("0"))
-    iva_deducible = sum((inv.vat_amount for inv in recibidas), Decimal("0"))
-    saldo = iva_devengado - iva_deducible
-    if saldo > 0:
-        tipo_saldo = "a ingresar"
-    elif saldo < 0:
-        tipo_saldo = "a compensar"
-    else:
-        tipo_saldo = "neutro"
-
-    breakdown = {}
-    for rate in VAT_RATES:
-        breakdown[str(rate)] = {
-            "devengado": float(sum((inv.vat_amount for inv in emitidas if inv.vat_rate == rate), Decimal("0"))),
-            "deducible": float(sum((inv.vat_amount for inv in recibidas if inv.vat_rate == rate), Decimal("0"))),
-        }
-
-    return {
-        "date_from": date_from,
-        "date_to": date_to,
-        "iva_devengado": float(iva_devengado),
-        "iva_deducible": float(iva_deducible),
-        "saldo": float(saldo),
-        "tipo_saldo": tipo_saldo,
-        "breakdown": breakdown,
-    }
 
 
 def _csv_export(data):
@@ -168,5 +125,5 @@ def exportar_iva(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ):
-    data = _compute_iva(db, date_from, date_to, company_id)
+    data = compute_iva(db, date_from, date_to, company_id)
     return _respond(data, format, "iva")

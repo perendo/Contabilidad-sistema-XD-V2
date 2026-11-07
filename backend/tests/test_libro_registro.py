@@ -192,3 +192,118 @@ def test_libro_registro_idempotente_mismo_ejercicio(client):
     second = client.get("/libro-registro", params=params, headers=headers)
     assert second.status_code == 200
     assert second.json() == first.json()
+
+
+def test_libro_registro_uses_constant_queries(client, count_queries):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente, proveedor = _setup_libro_registro(client, headers)
+
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": cliente["id"],
+            "description": "Servicios",
+            "base_amount": 1000,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-04-15",
+            "supplier_id": proveedor["id"],
+            "supplier_number": "F-2026-0500",
+            "description": "Compra",
+            "base_amount": 2000,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    def measure():
+        with count_queries() as statements:
+            response = client.get(
+                "/libro-registro", params={"year": 2026}, headers=headers
+            )
+        assert response.status_code == 200
+        return response, statements
+
+    _, small = measure()
+
+    for index in range(1, 5):
+        client_account = client.post(
+            "/accounts",
+            json={
+                "code": f"431{index}",
+                "name": f"Clientes {index}",
+                "type": "Activo",
+                "level": 1,
+                "is_detail": True,
+            },
+            headers=headers,
+        ).json()
+        extra_client = client.post(
+            "/third-parties",
+            json={
+                "name": f"Cliente {index} SL",
+                "tax_id": f"B2000000{index}",
+                "type": "cliente",
+                "account_id": client_account["id"],
+            },
+            headers=headers,
+        ).json()
+        supplier_account = client.post(
+            "/accounts",
+            json={
+                "code": f"401{index}",
+                "name": f"Proveedores {index}",
+                "type": "Pasivo",
+                "level": 1,
+                "is_detail": True,
+            },
+            headers=headers,
+        ).json()
+        extra_supplier = client.post(
+            "/third-parties",
+            json={
+                "name": f"Proveedor {index} SL",
+                "tax_id": f"B3000000{index}",
+                "type": "proveedor",
+                "account_id": supplier_account["id"],
+            },
+            headers=headers,
+        ).json()
+        client.post(
+            "/invoices",
+            json={
+                "date": f"2026-06-{index + 10:02d}",
+                "client_id": extra_client["id"],
+                "description": "Servicios",
+                "base_amount": 1000,
+                "vat_rate": 21,
+            },
+            headers=headers,
+        )
+        client.post(
+            "/received-invoices",
+            json={
+                "date": f"2026-07-{index + 10:02d}",
+                "supplier_id": extra_supplier["id"],
+                "supplier_number": f"F-2026-05{index:02d}",
+                "description": "Compra",
+                "base_amount": 2000,
+                "vat_rate": 21,
+                "expense_account_id": accounts["6000"]["id"],
+            },
+            headers=headers,
+        )
+
+    response, large = measure()
+
+    assert len(large) == len(small)
+    assert len(response.json()["emitidas"]) == 5
+    assert len(response.json()["recibidas"]) == 5

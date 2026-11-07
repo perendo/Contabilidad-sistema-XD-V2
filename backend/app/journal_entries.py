@@ -2,7 +2,7 @@ from datetime import date as DateType
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, AliasChoices
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .auth import get_current_user
 from .company_context import active_company_id_dep
@@ -167,7 +167,14 @@ def list_entries(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> list[JournalEntry]:
-    q = db.query(JournalEntry).filter(JournalEntry.company_id == company_id)
+    q = (
+        db.query(JournalEntry)
+        .options(
+            joinedload(JournalEntry.lines),
+            joinedload(JournalEntry.author_user),
+        )
+        .filter(JournalEntry.company_id == company_id)
+    )
     start = date_from or start_date or from_date
     end = date_to or end_date or to_date
     if start is not None:

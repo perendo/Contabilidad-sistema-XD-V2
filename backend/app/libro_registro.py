@@ -1,13 +1,12 @@
 from datetime import date
-from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
-from .models import Invoice, ReceivedInvoice, ThirdParty, User
+from .models import Invoice, ReceivedInvoice, User
 
 router = APIRouter(tags=["libro-registro"])
 
@@ -43,12 +42,18 @@ def libro_registro(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> LibroRegistroOut:
-    emitidas = db.query(Invoice).filter(
-        Invoice.company_id == company_id,
-        Invoice.year == year,
-    ).all()
+    emitidas = (
+        db.query(Invoice)
+        .options(joinedload(Invoice.third_party))
+        .filter(
+            Invoice.company_id == company_id,
+            Invoice.year == year,
+        )
+        .all()
+    )
     recibidas = (
         db.query(ReceivedInvoice)
+        .options(joinedload(ReceivedInvoice.third_party))
         .filter(
             ReceivedInvoice.company_id == company_id,
             ReceivedInvoice.date >= date(year, 1, 1),

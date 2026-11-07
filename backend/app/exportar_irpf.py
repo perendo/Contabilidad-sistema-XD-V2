@@ -1,17 +1,14 @@
 import csv
 import io
-from datetime import date
-from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
 from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
-from .irpf_summary import QUARTER_MONTHS
-from .models import Invoice, ReceivedInvoice, User
+from .irpf_summary import compute_irpf
+from .models import User
 
 router = APIRouter(tags=["exportar-irpf"])
 
@@ -21,47 +18,6 @@ def _sanitize_cell(val):
     if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
         return "'" + s
     return s
-
-
-def _compute_irpf(db: Session, year: int, quarter: int, company_id: int | None = None):
-    start_month, end_month = QUARTER_MONTHS[quarter]
-    date_from = date(year, start_month, 1)
-    import calendar
-    if end_month == 2:
-        date_to = date(year, end_month, calendar.monthrange(year, end_month)[1])
-    elif end_month in (4, 6, 9, 11):
-        date_to = date(year, end_month, 30)
-    else:
-        date_to = date(year, end_month, 31)
-
-    emitidas = db.query(Invoice).filter(
-        Invoice.company_id == company_id,
-        or_(Invoice.irpf_rate.isnot(None), Invoice.irpf_amount > 0),
-        Invoice.date >= date_from,
-        Invoice.date <= date_to,
-    ).all()
-    recibidas = db.query(ReceivedInvoice).filter(
-        ReceivedInvoice.company_id == company_id,
-        or_(ReceivedInvoice.irpf_rate.isnot(None), ReceivedInvoice.irpf_amount > 0),
-        ReceivedInvoice.date >= date_from,
-        ReceivedInvoice.date <= date_to,
-    ).all()
-
-    base_recibidas = sum((inv.base_amount for inv in recibidas), Decimal("0"))
-    retenciones_practicadas = sum((inv.irpf_amount or Decimal("0") for inv in recibidas), Decimal("0"))
-    base_emitidas = sum((inv.base_amount for inv in emitidas), Decimal("0"))
-    retenciones_soportadas = sum((inv.irpf_amount or Decimal("0") for inv in emitidas), Decimal("0"))
-
-    return {
-        "year": year,
-        "quarter": quarter,
-        "date_from": date_from,
-        "date_to": date_to,
-        "modelo_111": {"base": float(base_recibidas), "retenciones_a_ingresar": float(retenciones_practicadas)},
-        "pagos_a_cuenta_130": {"base": float(base_emitidas), "retenciones_soportadas": float(retenciones_soportadas)},
-        "facturas_emitidas_count": len(emitidas),
-        "facturas_recibidas_count": len(recibidas),
-    }
 
 
 def _csv_export(data):
@@ -155,5 +111,5 @@ def exportar_irpf(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ):
-    data = _compute_irpf(db, year, quarter, company_id)
+    data = compute_irpf(db, year, quarter, company_id)
     return _respond(data, format, "irpf")

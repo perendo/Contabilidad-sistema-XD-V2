@@ -142,3 +142,60 @@ def test_export_iva_unsupported_format_returns_400(client):
         headers=headers,
     )
     assert response.status_code == 400
+
+
+def test_iva_liquidation_and_export_use_constant_queries(client, count_queries):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente, proveedor = _setup(client, headers)
+    params = {"date_from": "2026-01-01", "date_to": "2026-12-31"}
+
+    def measure(url, **extra_params):
+        with count_queries() as statements:
+            response = client.get(url, params={**params, **extra_params}, headers=headers)
+        assert response.status_code == 200
+        return [statement.lower() for statement in statements]
+
+    small_iva = measure("/iva-liquidation")
+    small_export = measure("/exportar-iva", format="csv")
+
+    for index in range(2, 6):
+        client.post(
+            "/invoices",
+            json={
+                "date": f"2026-05-{index:02d}",
+                "client_id": cliente["id"],
+                "description": "Servicios",
+                "base_amount": 100,
+                "vat_rate": 10,
+            },
+            headers=headers,
+        )
+        client.post(
+            "/received-invoices",
+            json={
+                "date": f"2026-05-{index:02d}",
+                "supplier_id": proveedor["id"],
+                "supplier_number": f"F-2026-{index:04d}",
+                "description": "Compra",
+                "base_amount": 200,
+                "vat_rate": 10,
+                "expense_account_id": accounts["6000"]["id"],
+            },
+            headers=headers,
+        )
+
+    large_iva = measure("/iva-liquidation")
+    large_export = measure("/exportar-iva", format="csv")
+
+    assert len(large_iva) == len(small_iva)
+    assert len(large_export) == len(small_export)
+
+    for statements in (small_iva, large_iva, small_export, large_export):
+        invoice_queries = [
+            statement
+            for statement in statements
+            if "from invoices" in statement or "from received_invoices" in statement
+        ]
+        assert invoice_queries
+        assert all("group by" in statement for statement in invoice_queries)

@@ -104,3 +104,39 @@ def test_extracto_cuenta_unknown_account_returns_404(client):
         headers=headers,
     )
     assert response.status_code == 404
+
+
+def test_extracto_cuenta_uses_constant_queries(client, count_queries):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts = _setup_accounts(client, headers)
+    assert _create_entry(client, headers, accounts, "2026-01-10", 100).status_code == 201
+
+    def measure():
+        with count_queries() as statements:
+            response = client.get(
+                "/extracto-cuenta",
+                params={
+                    "account_id": accounts["572"]["id"],
+                    "date_from": "2026-01-01",
+                    "date_to": "2026-12-31",
+                },
+                headers=headers,
+            )
+        assert response.status_code == 200
+        return response, statements
+
+    _, small = measure()
+
+    for index in range(1, 5):
+        assert (
+            _create_entry(
+                client, headers, accounts, f"2026-02-{index + 10:02d}", 100 + index
+            ).status_code
+            == 201
+        )
+
+    response, large = measure()
+
+    assert len(large) == len(small)
+    assert len(response.json()["movements"]) == 5

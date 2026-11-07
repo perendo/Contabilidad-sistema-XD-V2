@@ -1,4 +1,5 @@
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -6,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bcrypt
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
@@ -68,6 +69,24 @@ def client():
     client.cookies.set("active_company_id", "1")
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def count_queries():
+    @contextmanager
+    def _capture():
+        statements: list[str] = []
+
+        def _record(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        event.listen(engine, "before_cursor_execute", _record)
+        try:
+            yield statements
+        finally:
+            event.remove(engine, "before_cursor_execute", _record)
+
+    return _capture
 
 
 @pytest.fixture(autouse=True)

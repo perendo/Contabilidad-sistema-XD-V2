@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
@@ -25,6 +26,71 @@ class Modelo347Out(BaseModel):
     third_parties: list[ThirdPartySummaryOut]
 
 
+def _totals_query(
+    db: Session,
+    model,
+    company_id: int | None,
+    date_from: date,
+    date_to: date,
+):
+    return (
+        db.query(
+            model.third_party_id.label("third_party_id"),
+            func.sum(model.total).label("total"),
+        )
+        .filter(
+            model.company_id == company_id,
+            model.date >= date_from,
+            model.date <= date_to,
+        )
+        .group_by(model.third_party_id)
+    )
+
+
+def compute_modelo_347(
+    db: Session,
+    year: int,
+    threshold: float,
+    company_id: int | None = None,
+) -> dict:
+    date_from = date(year, 1, 1)
+    date_to = date(year, 12, 31)
+    totals = _totals_query(
+        db, Invoice, company_id, date_from, date_to
+    ).union_all(
+        _totals_query(db, ReceivedInvoice, company_id, date_from, date_to)
+    ).subquery()
+
+    rows = (
+        db.query(
+            ThirdParty.id,
+            ThirdParty.tax_id,
+            ThirdParty.name,
+            func.sum(totals.c.total).label("total_annual"),
+        )
+        .join(totals, totals.c.third_party_id == ThirdParty.id)
+        .filter(ThirdParty.company_id == company_id)
+        .group_by(ThirdParty.id, ThirdParty.tax_id, ThirdParty.name)
+        .having(func.sum(totals.c.total) > Decimal(str(threshold)))
+        .order_by(ThirdParty.tax_id)
+        .all()
+    )
+
+    return {
+        "year": year,
+        "threshold": threshold,
+        "third_parties": [
+            {
+                "third_party_id": third_party_id,
+                "tax_id": tax_id,
+                "name": name,
+                "total_annual": float(total_annual),
+            }
+            for third_party_id, tax_id, name, total_annual in rows
+        ],
+    }
+
+
 @router.get("/modelo-347", response_model=Modelo347Out, status_code=status.HTTP_200_OK)
 def modelo_347(
     year: int = Query(...),
@@ -33,46 +99,11 @@ def modelo_347(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> Modelo347Out:
-    emitidas = db.query(Invoice).filter(
-        Invoice.company_id == company_id,
-        Invoice.year == year,
-    ).all()
-    recibidas = db.query(ReceivedInvoice).filter(
-        ReceivedInvoice.company_id == company_id,
-        ReceivedInvoice.date >= date(year, 1, 1),
-        ReceivedInvoice.date <= date(year, 12, 31),
-    ).all()
-
-    totals: dict[int, Decimal] = {}
-    for inv in emitidas:
-        totals[inv.third_party_id] = totals.get(inv.third_party_id, Decimal("0")) + inv.total
-    for inv in recibidas:
-        totals[inv.third_party_id] = totals.get(inv.third_party_id, Decimal("0")) + inv.total
-
-    threshold_decimal = Decimal(str(threshold))
-    third_party_ids = [tp_id for tp_id, total in totals.items() if total > threshold_decimal]
-    third_parties = (
-        db.query(ThirdParty).filter(
-            ThirdParty.id.in_(third_party_ids),
-            ThirdParty.company_id == company_id,
-        ).all()
-        if third_party_ids
-        else []
-    )
-
-    result: list[ThirdPartySummaryOut] = []
-    for tp in third_parties:
-        result.append(
-            ThirdPartySummaryOut(
-                third_party_id=tp.id,
-                tax_id=tp.tax_id,
-                name=tp.name,
-                total_annual=float(totals[tp.id]),
-            )
-        )
-
+    data = compute_modelo_347(db, year, threshold, company_id)
     return Modelo347Out(
-        year=year,
-        threshold=threshold,
-        third_parties=result,
+        year=data["year"],
+        threshold=data["threshold"],
+        third_parties=[
+            ThirdPartySummaryOut(**item) for item in data["third_parties"]
+        ],
     )

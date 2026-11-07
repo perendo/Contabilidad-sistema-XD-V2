@@ -245,3 +245,92 @@ def test_modelo_347_idempotent_repeat_year_and_threshold(client):
     second = client.get("/modelo-347", params=params, headers=headers)
     assert second.status_code == 200
     assert second.json() == first.json()
+
+
+def test_modelo_347_and_export_use_constant_queries(client, count_queries):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente_alto, _, proveedor_alto, _ = _setup_modelo_347(client, headers)
+    params = {"year": 2026, "threshold": 3000}
+
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": cliente_alto["id"],
+            "description": "Servicios",
+            "base_amount": 4000,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-04-15",
+            "supplier_id": proveedor_alto["id"],
+            "supplier_number": "F-2026-0400",
+            "description": "Compra",
+            "base_amount": 4000,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    def measure(url, **extra_params):
+        with count_queries() as statements:
+            response = client.get(url, params={**params, **extra_params}, headers=headers)
+        assert response.status_code == 200
+        return response, [statement.lower() for statement in statements]
+
+    _, small_json = measure("/modelo-347")
+    _, small_export = measure("/exportar-modelo-347", format="csv")
+
+    for index in range(1, 4):
+        client.post(
+            "/invoices",
+            json={
+                "date": f"2026-09-{index + 10:02d}",
+                "client_id": cliente_alto["id"],
+                "description": "Servicios",
+                "base_amount": 4000,
+                "vat_rate": 21,
+            },
+            headers=headers,
+        )
+        client.post(
+            "/received-invoices",
+            json={
+                "date": f"2026-10-{index + 10:02d}",
+                "supplier_id": proveedor_alto["id"],
+                "supplier_number": f"F-2026-04{index:02d}",
+                "description": "Compra",
+                "base_amount": 4000,
+                "vat_rate": 21,
+                "expense_account_id": accounts["6000"]["id"],
+            },
+            headers=headers,
+        )
+
+    json_response, large_json = measure("/modelo-347")
+    export_response, large_export = measure("/exportar-modelo-347", format="csv")
+
+    assert len(large_json) == len(small_json)
+    assert len(large_export) == len(small_export)
+
+    for statements in (small_json, large_json, small_export, large_export):
+        invoice_queries = [
+            statement
+            for statement in statements
+            if "from invoices" in statement or "from received_invoices" in statement
+        ]
+        assert invoice_queries
+        assert all("sum(" in statement and "group by" in statement for statement in invoice_queries)
+
+    totals = {
+        item["tax_id"]: item["total_annual"]
+        for item in json_response.json()["third_parties"]
+    }
+    assert totals == {"B11111111": 19360.0, "B33333333": 19360.0}
+    assert "19360.0" in export_response.content.decode("utf-8")
