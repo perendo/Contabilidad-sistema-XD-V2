@@ -264,3 +264,43 @@ def test_invoice_number_unique_per_company_not_global(client):
     )
     assert inv_a_2.status_code == 201
     assert inv_a_2.json()["number"] == 2
+
+
+def test_create_user_creates_membership_in_active_company(client):
+    '''Dado un usuario autenticado, cuando da de alta un nuevo usuario, entonces el sistema crea el usuario y lo asocia automáticamente a la sociedad activa del creador con rol admin (criterio #1 historia #46).'''
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # Crear una empresa primero
+    company = client.post(
+        "/companies",
+        json={
+            "name": "Empresa Test 2",
+            "tax_id": "B00000002",
+            "address": "",
+            "fiscal_year": "2026",
+        },
+        headers=headers,
+    )
+    assert company.status_code == 201
+    company_id = company.json()["id"]
+
+    # Crear un nuevo usuario
+    response = client.post(
+        "/users",
+        json={"email": "nuevo_usuario@example.com", "password": "clave123"},
+        headers={**headers, "X-Company-Id": str(company_id)},
+    )
+    assert response.status_code == 201
+    new_user = response.json()
+    assert new_user["email"] == "nuevo_usuario@example.com"
+
+    # Verificar que el usuario tiene membresía en la empresa creada
+    companies = client.get("/companies", headers=headers)
+    assert companies.status_code == 200
+    companies_list = companies.json()
+    company_ids = [c["id"] for c in companies_list]
+    assert company_id in company_ids

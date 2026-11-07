@@ -43,7 +43,7 @@ def get_company(
     if company_id is not None:
         company = db.query(Company).filter(Company.id == company_id).first()
     else:
-        company = db.query(Company).first()
+        company = None
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa no configurada")
     return company
