@@ -65,8 +65,8 @@ def _csv_export(rows, total_debe, total_haber, date_from, date_to):
     writer = csv.writer(buf, delimiter=";")
     writer.writerow(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
     for row in rows:
-        writer.writerow([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), row["debe"], row["haber"], row["saldo"]])
-    writer.writerow(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
+        writer.writerow([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), _sanitize_cell(row["debe"]), _sanitize_cell(row["haber"]), _sanitize_cell(row["saldo"])])
+    writer.writerow([_sanitize_cell("TOTAL"), _sanitize_cell(""), _sanitize_cell(total_debe), _sanitize_cell(total_haber), _sanitize_cell(total_debe - total_haber)])
     return buf.getvalue().encode("utf-8")
 
 
@@ -121,8 +121,8 @@ def _xlsx_export(rows, total_debe, total_haber, date_from, date_to):
     ws.append([])
     ws.append(["Cuenta", "Nombre", "Debe", "Haber", "Saldo"])
     for row in rows:
-        ws.append([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), row["debe"], row["haber"], row["saldo"]])
-    ws.append(["TOTAL", "", total_debe, total_haber, total_debe - total_haber])
+        ws.append([_sanitize_cell(row["code"]), _sanitize_cell(row["name"]), _sanitize_cell(row["debe"]), _sanitize_cell(row["haber"]), _sanitize_cell(row["saldo"])])
+    ws.append([_sanitize_cell("TOTAL"), _sanitize_cell(""), _sanitize_cell(total_debe), _sanitize_cell(total_haber), _sanitize_cell(total_debe - total_haber)])
 
     buf = io.BytesIO()
     wb.save(buf)

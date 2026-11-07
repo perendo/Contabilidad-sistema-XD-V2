@@ -62,7 +62,7 @@ def _csv_export(data):
     writer.writerow([])
     writer.writerow(["NIF/CIF", "Nombre", "Total anual"])
     for row in data["third_parties"]:
-        writer.writerow([_sanitize_cell(row["tax_id"]), _sanitize_cell(row["name"]), row["total_annual"]])
+        writer.writerow([_sanitize_cell(row["tax_id"]), _sanitize_cell(row["name"]), _sanitize_cell(row["total_annual"])])
     return buf.getvalue().encode("utf-8")
 
 
@@ -102,7 +102,7 @@ def _xlsx_export(data):
     ws.append([])
     ws.append(["NIF/CIF", "Nombre", "Total anual"])
     for row in data["third_parties"]:
-        ws.append([_sanitize_cell(row["tax_id"]), _sanitize_cell(row["name"]), row["total_annual"]])
+        ws.append([_sanitize_cell(row["tax_id"]), _sanitize_cell(row["name"]), _sanitize_cell(row["total_annual"])])
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

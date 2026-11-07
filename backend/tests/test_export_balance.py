@@ -101,3 +101,87 @@ def test_export_balance_idempotent_same_params(client):
     second = client.get("/exportar-balance", params=params, headers=headers)
     assert second.status_code == 200
     assert second.content == first.content
+
+
+def test_export_balance_csv_formula_injection_sanitized(client):
+    """SEC-01: Los nombres de cuenta que empiezan con caracteres disparadores (=, +, -, @) deben neutralizarse."""
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Crear cuentas con nombres maliciosos (fórmulas de Excel)
+    acc_9999 = client.post(
+        "/accounts",
+        json={"code": "9999", "name": "=HACK()Malicious", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_9998 = client.post(
+        "/accounts",
+        json={"code": "9998", "name": "+MALICIOUS", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_9997 = client.post(
+        "/accounts",
+        json={"code": "9997", "name": "@DANGER", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    # Crear cuenta de banco para el asiento
+    acc_banco = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    # Crear asientos para cada cuenta maliciosa para que aparezcan en el balance
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento malicioso 1",
+            "lines": [
+                {"account_id": acc_9999["id"], "description": "Gas", "debit": 100, "credit": 0},
+                {"account_id": acc_banco["id"], "description": "Banco", "debit": 0, "credit": 100},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento malicioso 2",
+            "lines": [
+                {"account_id": acc_9998["id"], "description": "Gas", "debit": 200, "credit": 0},
+                {"account_id": acc_banco["id"], "description": "Banco", "debit": 0, "credit": 200},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Asiento malicioso 3",
+            "lines": [
+                {"account_id": acc_9997["id"], "description": "Gas", "debit": 300, "credit": 0},
+                {"account_id": acc_banco["id"], "description": "Banco", "debit": 0, "credit": 300},
+            ],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/exportar-balance",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31", "format": "csv"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+
+    # Los nombres maliciosos deben estar precedidos por comilla simple para neutralizar fórmulas
+    assert "'=HACK()Malicious" in content
+    assert "'+MALICIOUS" in content
+    assert "'@DANGER" in content
+    # Los caracteres disparadores NO deben aparecer al inicio sin comilla
+    assert "=HACK()Malicious" not in content.replace("'=HACK()Malicious", "")
+    assert "+MALICIOUS" not in content.replace("'+MALICIOUS", "")
+    assert "@DANGER" not in content.replace("'@DANGER", "")
