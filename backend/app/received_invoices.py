@@ -1,7 +1,10 @@
 from datetime import date as DateType
 from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
+from uuid import uuid4
 
 import re
+import json
 import xml.etree.ElementTree as ET
 from datetime import datetime as DateTime
 from io import BytesIO
@@ -15,7 +18,7 @@ from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
 from .invoices import ALLOWED_VAT_RATES, CENT
-from .document_storage import build_file_path, write_document
+from .document_storage import build_file_path, documents_root, write_document
 from .journal_entries import JournalLineIn, add_accepted_entry
 from .models import Account, Document, ReceivedInvoice, ThirdParty, User
 
@@ -82,6 +85,172 @@ class ReceivedInvoiceOut(BaseModel):
     entry_id: int | None
     status: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class ExtractedDataOut(BaseModel):
+    nif: str
+    name: str
+    number: str
+    date: DateType
+    base: float
+    vat_rate: float
+    vat_amount: float | None = None
+    total: float | None = None
+    temp_file_id: str
+
+
+@router.post("/received-invoices/extract", status_code=status.HTTP_200_OK)
+def extract_received_invoice(
+    file: UploadFile = File(...),
+    expense_account_id: int | None = Form(default=None),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> ExtractedDataOut:
+    content = file.file.read()
+    filename = file.filename or "factura"
+    media_type = (file.content_type or "").lower()
+    is_pdf = filename.lower().endswith(".pdf") or media_type == "application/pdf"
+    is_image = filename.lower().endswith((".png", ".jpg", ".jpeg")) or media_type in (
+        "image/png",
+        "image/jpeg",
+    )
+    if not is_pdf and not is_image:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se admiten archivos PDF o imagen en la extraccion",
+        )
+    if is_pdf:
+        text = _extract_pdf_text(content)
+    else:
+        text = _extract_image_text(content)
+    data = _parse_pdf_text(text)
+
+    temp_file_id = uuid4().hex
+    suffix = Path(filename).suffix.lower()
+    temp_path = documents_root() / "temp" / f"{temp_file_id}{suffix}"
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path.write_bytes(content)
+    meta = {
+        "filename": filename,
+        "content_type": media_type,
+        "content_name": temp_path.name,
+    }
+    (documents_root() / "temp" / f"{temp_file_id}.meta.json").write_text(
+        json.dumps(meta), encoding="utf-8"
+    )
+
+    return ExtractedDataOut(
+        nif=data["nif"],
+        name=data["name"],
+        number=data["number"],
+        date=data["date"],
+        base=float(data["base"]),
+        vat_rate=float(data["vat_rate"]),
+        vat_amount=float(data["vat_amount"]) if data.get("vat_amount") is not None else None,
+        total=float(data["total"]) if data.get("total") is not None else None,
+        temp_file_id=temp_file_id,
+    )
+
+
+@router.post(
+    "/received-invoices/confirm",
+    response_model=ReceivedInvoiceOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def confirm_received_invoice(
+    temp_file_id: str = Form(...),
+    third_party_id: int = Form(...),
+    supplier_number: str = Form(
+        validation_alias=AliasChoices(
+            "supplier_number", "numero_factura", "numero_proveedor", "invoice_number"
+        )
+    ),
+    description: str = Form(
+        default="",
+        max_length=500,
+        validation_alias=AliasChoices("description", "concept", "concepto"),
+    ),
+    base_amount: Decimal = Form(
+        validation_alias=AliasChoices("base_amount", "base", "base_imponible")
+    ),
+    vat_rate: Decimal = Form(validation_alias=AliasChoices("vat_rate", "iva", "tipo_iva")),
+    expense_account_id: int = Form(
+        validation_alias=AliasChoices("expense_account_id", "cuenta_gasto_id", "account_id")
+    ),
+    date: DateType = Form(validation_alias=AliasChoices("date", "fecha")),
+    irpf_rate: Decimal | None = Form(
+        default=None, validation_alias=AliasChoices("irpf_rate", "retencion_irpf", "tipo_retencion")
+    ),
+    irpf_amount: Decimal | None = Form(
+        default=None, validation_alias=AliasChoices("irpf_amount", "importe_retencion")
+    ),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> ReceivedInvoiceOut:
+    temp_dir = documents_root() / "temp"
+    meta_path = temp_dir / f"{temp_file_id}.meta.json"
+    if not meta_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Archivo temporal no encontrado o ya expirado",
+        )
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    content_name = meta["content_name"]
+    content_path = temp_dir / content_name
+    if not content_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Archivo temporal no encontrado o ya expirado",
+        )
+    content = content_path.read_bytes()
+    filename = meta["filename"]
+    content_type = meta["content_type"]
+
+    body = ReceivedInvoiceIn(
+        date=date,
+        third_party_id=third_party_id,
+        supplier_number=supplier_number,
+        description=description,
+        base_amount=base_amount,
+        vat_rate=vat_rate,
+        expense_account_id=expense_account_id,
+        irpf_rate=irpf_rate,
+        irpf_amount=irpf_amount,
+    )
+    try:
+        invoice = create_received_invoice(body, user, db, company_id=company_id)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    from .models import JournalEntry as JE
+
+    je = db.query(JE).filter(JE.id == invoice.entry_id).first()
+    file_path = build_file_path(db, je, filename, content_type)
+    write_document(file_path, content)
+    doc = Document(
+        entry_id=invoice.entry_id,
+        filename=filename[:255],
+        content_type=content_type,
+        size=len(content),
+        file_path=file_path,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(invoice)
+
+    try:
+        content_path.unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    return invoice
 
 
 @router.post(
@@ -429,6 +598,28 @@ def _extract_pdf_text(content):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se pudo extraer texto del PDF",
+        )
+    return text
+
+
+def _extract_image_text(content):
+    from PIL import Image
+    from io import BytesIO
+
+    import pytesseract
+
+    try:
+        image = Image.open(BytesIO(content))
+        text = pytesseract.image_to_string(image, lang="spa")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pudo leer la imagen: {exc}",
+        )
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo extraer texto de la imagen",
         )
     return text
 

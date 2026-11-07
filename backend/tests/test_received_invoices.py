@@ -1,7 +1,10 @@
 import pytest
+import shutil
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
+
+_tesseract_available = shutil.which("tesseract") is not None
 
 
 def _login(client):
@@ -840,3 +843,225 @@ def test_imported_received_invoice_records_the_author(client):
     entries = client.get("/journal-entries", headers=headers).json()
     imported_entry = next(e for e in entries if e["id"] == invoice["entry_id"])
     assert imported_entry["author"] == "importador@example.com"
+
+
+def test_extract_received_invoice_from_pdf_returns_data_without_creating_entry(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-001\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["nif"] == "B12345678"
+    assert data["name"] == "Proveedor Test SL"
+    assert data["number"] == "F-001"
+    assert data["date"] == "2026-01-15"
+    assert data["base"] == 100.0
+    assert data["vat_rate"] == 21.0
+    assert "temp_file_id" in data
+
+    # no se creo ni asiento ni factura
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_extract_received_invoice_from_pdf_without_text_returns_400_and_persists_nothing(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf_bytes = bytes(pdf.output())
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("vacio.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_confirm_received_invoice_creates_entry_and_attachment(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4000", "name": "Proveedores", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Test SL",
+            "tax_id": "B12345678",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-001\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    extract = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert extract.status_code == 200
+    temp_file_id = extract.json()["temp_file_id"]
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/confirm",
+        data={
+            "temp_file_id": temp_file_id,
+            "third_party_id": str(tercero["id"]),
+            "supplier_number": "F-001",
+            "description": "Compra de mercaderías",
+            "base_amount": "100.00",
+            "vat_rate": "21",
+            "expense_account_id": str(gasto["id"]),
+            "date": "2026-01-15",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["supplier_number"] == "F-001"
+    assert data["description"] == "Compra de mercaderías"
+    assert data["base_amount"] == 100.0
+    assert data["vat_rate"] == 21.0
+    assert data["total"] == 121.0
+    assert data["entry_id"] is not None
+    assert data["status"] == "pendiente"
+
+    entry = [e for e in client.get("/journal-entries", headers=headers).json()
+             if e["id"] == data["entry_id"]][0]
+    assert entry["status"] == "accepted"
+
+    atts = client.get(f"/journal-entries/{data['entry_id']}/attachments", headers=headers).json()
+    assert len(atts) == 1
+    assert atts[0]["filename"] == "factura.pdf"
+
+    assert len(client.get("/journal-entries", headers=headers).json()) == len(before_entries) + 1
+    assert len(client.get("/received-invoices", headers=headers).json()) == len(before_invoices) + 1
+
+
+def _make_image(text):
+    from PIL import Image, ImageDraw
+    from io import BytesIO
+
+    img = Image.new("RGB", (500, 250), color="white")
+    d = ImageDraw.Draw(img)
+    d.text((10, 10), text, fill="black")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+@pytest.mark.skipif(not _tesseract_available, reason="Tesseract OCR no instalado")
+def test_extract_received_invoice_from_image_returns_data_without_creating_entry(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    client.post(
+        "/accounts",
+        json={"code": "6000", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado 21%", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    image_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-001\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    image_bytes = _make_image(image_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.png", image_bytes, "image/png")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["nif"] == "B12345678"
+    assert data["name"] == "Proveedor Test SL"
+    assert data["number"] == "F-001"
+    assert data["date"] == "2026-01-15"
+    assert data["base"] == 100.0
+    assert data["vat_rate"] == 21.0
+    assert "temp_file_id" in data
+
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
