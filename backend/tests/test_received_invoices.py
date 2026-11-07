@@ -1172,3 +1172,351 @@ def test_extract_received_invoice_without_supplier_returns_warnings_without_crea
 
     assert client.get("/journal-entries", headers=headers).json() == before_entries
     assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_auto_register_below_threshold_no_warnings_third_party_exists(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral de aprobación
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "10000.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    # crear cuenta de gasto, IVA y tercero existente (códigos únicos para no chocar con seed_pgc)
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4001", "name": "Proveedores test", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Test SL",
+            "tax_id": "B12345678",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6001", "name": "Gasto test", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4724", "name": "IVA soportado test", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-010\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["auto_registered"] is True
+    assert data["nif"] == "B12345678"
+    assert data["base"] == 100.0
+    assert data["vat_rate"] == 21.0
+    assert data["total"] == 121.0
+    assert data["invoice_id"] is not None
+    assert data["entry_id"] is not None
+    assert len(data["warnings"]) == 0
+
+    # se creó factura y asiento aceptado
+    assert len(client.get("/journal-entries", headers=headers).json()) == len(before_entries) + 1
+    assert len(client.get("/received-invoices", headers=headers).json()) == len(before_invoices) + 1
+    entries = client.get("/journal-entries", headers=headers).json()
+    entry = [e for e in entries if e["id"] == data["entry_id"]][0]
+    assert entry["status"] == "accepted"
+
+    atts = client.get(f"/journal-entries/{data['entry_id']}/attachments", headers=headers).json()
+    assert len(atts) == 1
+    assert atts[0]["filename"] == "factura.pdf"
+
+
+def test_no_auto_register_above_threshold(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral bajo (100.00) y factura de 121.00
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "100.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4002", "name": "Proveedores test 2", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Test SL",
+            "tax_id": "B12345678",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6002", "name": "Gasto test 2", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4725", "name": "IVA soportado test 2", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-011\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["auto_registered"] is False
+    assert data["invoice_id"] is None
+    assert data["entry_id"] is None
+    assert len(data["warnings"]) == 0
+
+    # no se creó factura ni asiento
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_no_auto_register_with_warnings(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral alto (10000.00) pero factura con IVA inconsistente
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "10000.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4003", "name": "Proveedores test 3", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Test SL",
+            "tax_id": "B12345678",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6003", "name": "Gasto test 3", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4726", "name": "IVA soportado test 3", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-012\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 25.00\n"
+        "Total: 125.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["auto_registered"] is False
+    assert data["invoice_id"] is None
+    assert data["entry_id"] is None
+    assert len(data["warnings"]) > 0
+    assert any("IVA" in w or "cuota" in w.lower() for w in data["warnings"])
+
+    # no se creó factura ni asiento
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_no_auto_register_no_threshold_configured(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # NO configurar umbral (queda None por defecto)
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4004", "name": "Proveedores test 4", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Test SL",
+            "tax_id": "B12345678",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6004", "name": "Gasto test 4", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4727", "name": "IVA soportado test 4", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-013\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["auto_registered"] is False
+    assert data["invoice_id"] is None
+    assert data["entry_id"] is None
+    assert len(data["warnings"]) == 0
+
+    # no se creó factura ni asiento
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_no_auto_register_third_party_not_exists_opens_form(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral alto, pero NO crear tercero (no existe)
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "10000.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6005", "name": "Gasto test 5", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4728", "name": "IVA soportado test 5", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Nuevo SL\n"
+        "NIF: B99999999\n"
+        "Factura: F-014\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+    before_thirds = client.get("/third-parties", headers=headers).json()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["auto_registered"] is False
+    assert data["invoice_id"] is None
+    assert data["entry_id"] is None
+    assert data["nif"] == "B99999999"
+    assert data["name"] == "Proveedor Nuevo SL"
+    assert len(data["warnings"]) == 0
+
+    # no se creó factura, asiento ni tercero
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+    assert client.get("/third-parties", headers=headers).json() == before_thirds

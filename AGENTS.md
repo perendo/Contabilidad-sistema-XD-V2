@@ -45,9 +45,9 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 34. [x] Como administrador, quiero dar de alta otros usuarios con email y contraseña, para que cada persona acceda con su propia cuenta. Requiere: #1
 35. [x] Como administrador, quiero que cada asiento manual registre el usuario que lo creó, para identificar su autor. Requiere: #1, #34
 36. [x] Como administrador, quiero que los asientos generados automáticamente (facturas emitidas/recibidas, tesorería, importación bancaria y correcciones) registren al usuario que los generó, para mantener la trazabilidad. Requiere: #34, #35
-37. [ ] Como administrador, quiero subir una factura recibida escaneada (PDF o imagen) y revisar los datos extraídos en un formulario editable, para registrarla sin teclearla y con el documento original adjunto.
-38. [ ] Como administrador, quiero que el sistema valide el proveedor, la base, el tipo de IVA, la cuota y el total extraídos y me avise de incoherencias antes de confirmar, para evitar errores fiscales. Requiere: #37
-39. [ ] Como administrador, quiero configurar un importe umbral a partir del cual una factura requiere aprobación, para que las operaciones de alto riesgo no se registren sin revisión. Requiere: #37
+37. [x] Como administrador, quiero subir una factura recibida escaneada (PDF o imagen) y revisar los datos extraídos en un formulario editable, para registrarla sin teclearla y con el documento original adjunto.
+38. [x] Como administrador, quiero que el sistema valide el proveedor, la base, el tipo de IVA, la cuota y el total extraídos y me avise de incoherencias antes de confirmar, para evitar errores fiscales. Requiere: #37
+39. [x] Como administrador, quiero configurar un importe umbral a partir del cual una factura requiere aprobación, para que las operaciones de alto riesgo no se registren sin revisión. Requiere: #37
 40. [ ] Como administrador, quiero que las facturas por debajo del umbral y sin avisos se registren automáticamente, para agilizar las facturas habituales. Requiere: #39
 41. [ ] Como administrador, quiero una bandeja de facturas pendientes de aprobación donde ver el documento original, los datos extraídos y el motivo de la pausa, para aprobarlas o rechazarlas. Requiere: #39
 42. [ ] Como administrador, quiero que al aprobar una factura se cree el asiento contable y quede registrado quién y cuándo la aprobó, para mantener la trazabilidad. Requiere: #41

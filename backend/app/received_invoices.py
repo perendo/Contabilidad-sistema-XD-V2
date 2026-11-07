@@ -20,7 +20,7 @@ from .database import get_db
 from .invoices import ALLOWED_VAT_RATES, CENT
 from .document_storage import build_file_path, documents_root, write_document
 from .journal_entries import JournalLineIn, add_accepted_entry
-from .models import Account, Document, JournalEntry, ReceivedInvoice, ThirdParty, User
+from .models import Account, Company, Document, JournalEntry, ReceivedInvoice, ThirdParty, User
 
 router = APIRouter(tags=["received-invoices"])
 
@@ -98,6 +98,9 @@ class ExtractedDataOut(BaseModel):
     total: float | None = None
     temp_file_id: str
     warnings: list[str] = []
+    auto_registered: bool = False
+    invoice_id: int | None = None
+    entry_id: int | None = None
 
 
 @router.post("/received-invoices/extract", status_code=status.HTTP_200_OK)
@@ -147,6 +150,81 @@ def extract_received_invoice(
     if not data.get("nif") and not data.get("name"):
         warnings.append("Proveedor no identificado: falta NIF o nombre")
 
+    auto_registered = False
+    invoice_id = None
+    entry_id = None
+
+    if (
+        not warnings
+        and company_id is not None
+        and total is not None
+        and (data.get("nif") or data.get("name"))
+    ):
+        company = db.query(Company).filter(Company.id == company_id).first()
+        threshold = company.approval_threshold if company else None
+        third = None
+        if data.get("nif"):
+            third = (
+                db.query(ThirdParty)
+                .filter(ThirdParty.tax_id == data["nif"])
+                .first()
+            )
+        if third is None and data.get("name"):
+            third = (
+                db.query(ThirdParty)
+                .filter(ThirdParty.name == data["name"])
+                .first()
+            )
+        if (
+            threshold is not None
+            and total < threshold
+            and third is not None
+        ):
+            exp_account_id = expense_account_id
+            if exp_account_id is None:
+                exp = (
+                    db.query(Account)
+                    .filter(Account.type == "Gasto", Account.is_detail == True)
+                    .first()
+                )
+                if exp is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="No existe cuenta de gasto para registro automático",
+                    )
+                exp_account_id = exp.id
+
+            body = ReceivedInvoiceIn(
+                date=data["date"],
+                third_party_id=third.id,
+                supplier_number=data["number"],
+                description="",
+                base_amount=data["base"],
+                vat_rate=data["vat_rate"],
+                expense_account_id=exp_account_id,
+            )
+            try:
+                invoice = create_received_invoice(body, user, db, company_id=company_id)
+            except HTTPException:
+                db.rollback()
+                raise
+            except Exception as exc:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                )
+
+            entry = (
+                db.query(JournalEntry)
+                .filter(JournalEntry.id == invoice.entry_id)
+                .first()
+            )
+            attach_document_to_entry(db, entry, filename, media_type, content)
+
+            auto_registered = True
+            invoice_id = invoice.id
+            entry_id = invoice.entry_id
+
     temp_file_id = uuid4().hex
     suffix = Path(filename).suffix.lower()
     temp_path = documents_root() / "temp" / f"{temp_file_id}{suffix}"
@@ -172,6 +250,9 @@ def extract_received_invoice(
         total=float(data["total"]) if data.get("total") is not None else None,
         temp_file_id=temp_file_id,
         warnings=warnings,
+        auto_registered=auto_registered,
+        invoice_id=invoice_id,
+        entry_id=entry_id,
     )
 
 
