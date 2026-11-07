@@ -1,4 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Barrier
+
+from fastapi.testclient import TestClient
+
+from app.main import app
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
@@ -99,6 +105,60 @@ def test_issued_invoice_number_is_sequential_per_fiscal_year(client):
     assert (first_2026["year"], first_2026["number"]) == (2026, 1)
     assert (second_2026["year"], second_2026["number"]) == (2026, 2)
     assert (first_2027["year"], first_2027["number"]) == (2027, 1)
+
+
+def test_journal_entry_description_shows_formatted_invoice_number(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    _, client_third_party = _setup_accounts_and_client(client, headers)
+
+    created = client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": client_third_party["id"],
+            "description": "Servicio",
+            "base_amount": 100,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    ).json()
+
+    entries = client.get("/journal-entries", headers=headers).json()
+    entry = next(e for e in entries if e["id"] == created["entry_id"])
+    assert entry["description"].startswith("Factura 2026/0001")
+
+
+def test_concurrent_invoices_receive_distinct_sequential_numbers(client):
+    token = _login(client)
+    company_id = client.cookies.get("active_company_id")
+    headers = {"Authorization": f"Bearer {token}", "X-Company-Id": company_id}
+    _, client_third_party = _setup_accounts_and_client(client, headers)
+
+    payload = {
+        "date": "2026-06-15",
+        "client_id": client_third_party["id"],
+        "description": "Servicio",
+        "base_amount": 100,
+        "vat_rate": 21,
+    }
+    workers = 4
+    barrier = Barrier(workers)
+
+    def create_invoice():
+        concurrent_client = TestClient(app)
+        barrier.wait(timeout=10)
+        try:
+            return concurrent_client.post("/invoices", json=payload, headers=headers)
+        finally:
+            concurrent_client.close()
+
+    for expected_numbers in (list(range(1, 5)), list(range(5, 9))):
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            responses = list(executor.map(lambda _: create_invoice(), range(workers)))
+
+        assert [response.status_code for response in responses] == [201] * workers
+        assert sorted(response.json()["number"] for response in responses) == expected_numbers
 
 
 def test_issued_invoice_generates_balanced_accepted_journal_entry(client):
@@ -274,7 +334,7 @@ def test_issued_invoice_with_out_of_range_base_or_extra_decimals_is_rejected(cli
     assert client.get("/invoices", headers=headers).json() == []
 
 
-def test_rejected_invoice_does_not_consume_number(client):
+def test_invoice_number_not_consumed_by_any_rejected_attempt(client):
     token = _login(client)
     headers = {"Authorization": f"Bearer {token}"}
     accounts, client_third_party = _setup_accounts_and_client(client, headers)
@@ -289,31 +349,28 @@ def test_rejected_invoice_does_not_consume_number(client):
         headers=headers,
     ).json()
 
-    rejected = client.post(
-        "/invoices",
-        json={
-            "date": "2026-03-10",
-            "client_id": supplier["id"],
-            "description": "Servicio",
-            "base_amount": 100,
-            "vat_rate": 21,
-        },
-        headers=headers,
-    )
-    assert rejected.status_code == 400
+    valid_payload = {
+        "date": "2026-05-20",
+        "client_id": client_third_party["id"],
+        "description": "Servicio",
+        "base_amount": 100,
+        "vat_rate": 21,
+    }
+    first = client.post("/invoices", json=valid_payload, headers=headers).json()
+    assert first["number"] == 1
 
-    created = client.post(
-        "/invoices",
-        json={
-            "date": "2026-03-10",
-            "client_id": client_third_party["id"],
-            "description": "Servicio",
-            "base_amount": 100,
-            "vat_rate": 21,
-        },
-        headers=headers,
-    ).json()
-    assert created["number"] == 1
+    rejected_payloads = [
+        {**valid_payload, "client_id": supplier["id"]},
+        {**valid_payload, "base_amount": 0},
+        {**valid_payload, "vat_rate": 7},
+    ]
+    for payload in rejected_payloads:
+        assert client.post("/invoices", json=payload, headers=headers).status_code == 400
+
+    second = client.post("/invoices", json=valid_payload, headers=headers).json()
+    assert second["number"] == 2
+    listed = client.get("/invoices", headers=headers).json()
+    assert sorted(invoice["number"] for invoice in listed) == [1, 2]
 
 
 def test_issued_invoice_and_its_collection_entry_record_the_author(client):
