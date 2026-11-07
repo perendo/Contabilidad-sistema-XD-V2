@@ -166,7 +166,7 @@ def test_company_rejects_tenant_spoofing_403(client):
     assert response.status_code == 200
 
 def test_invoice_number_unique_per_company_not_global(client):
-    """Dos empresas distintas pueden emitir facturas con el mismo número y año."""
+    """Dos empresas distintas pueden emitir facturas con el mismo número y año sin conflicto."""
     login = client.post(
         "/auth/login",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -186,85 +186,81 @@ def test_invoice_number_unique_per_company_not_global(client):
         headers=headers,
     ).json()
 
-    # Crear terceros y cuentas necesarias para cada empresa
-    # Empresa A: cuenta gasto y tercero
+    # Crear cuentas y tercero para empresa A (facturas emitidas usan cuenta de ventas 7000)
     acc_a = client.post(
         "/accounts",
-        json={"code": "6000", "name": "Gasto A", "type": "Gasto", "level": 1, "is_detail": True},
+        json={"code": "7000", "name": "Ventas A", "type": "Ingreso", "level": 1, "is_detail": True},
         headers={**headers, "X-Company-Id": str(company_a["id"])},
     ).json()
     client.post(
         "/accounts",
-        json={"code": "4720", "name": "IVA 21% A", "type": "Activo", "level": 1, "is_detail": True},
+        json={"code": "4770", "name": "IVA 21% A", "type": "Activo", "level": 1, "is_detail": True},
         headers={**headers, "X-Company-Id": str(company_a["id"])},
     )
     third_a = client.post(
         "/third-parties",
-        json={"name": "Proveedor A", "tax_id": "B11111111", "type": "proveedor", "account_id": acc_a["id"]},
+        json={"name": "Cliente A", "tax_id": "A11111111", "type": "cliente", "account_id": acc_a["id"]},
         headers={**headers, "X-Company-Id": str(company_a["id"])},
     ).json()
 
-    # Empresa B: cuenta gasto y tercero
+    # Crear cuentas y tercero para empresa B
     acc_b = client.post(
         "/accounts",
-        json={"code": "6000", "name": "Gasto B", "type": "Gasto", "level": 1, "is_detail": True},
+        json={"code": "7000", "name": "Ventas B", "type": "Ingreso", "level": 1, "is_detail": True},
         headers={**headers, "X-Company-Id": str(company_b["id"])},
     ).json()
     client.post(
         "/accounts",
-        json={"code": "4720", "name": "IVA 21% B", "type": "Activo", "level": 1, "is_detail": True},
+        json={"code": "4770", "name": "IVA 21% B", "type": "Activo", "level": 1, "is_detail": True},
         headers={**headers, "X-Company-Id": str(company_b["id"])},
     )
     third_b = client.post(
         "/third-parties",
-        json={"name": "Proveedor B", "tax_id": "B22222222", "type": "proveedor", "account_id": acc_b["id"]},
+        json={"name": "Cliente B", "tax_id": "B22222222", "type": "cliente", "account_id": acc_b["id"]},
         headers={**headers, "X-Company-Id": str(company_b["id"])},
     ).json()
 
     # Empresa A emite factura número 1 del año 2026
     inv_a = client.post(
-        "/received-invoices",
+        "/invoices",
         json={
             "date": "2026-01-15",
             "third_party_id": third_a["id"],
-            "supplier_number": "F-001",
             "description": "Factura A",
             "base_amount": 100.00,
             "vat_rate": 21,
-            "expense_account_id": acc_a["id"],
         },
         headers={**headers, "X-Company-Id": str(company_a["id"])},
     )
     assert inv_a.status_code == 201
+    assert inv_a.json()["number"] == 1
 
-    # Empresa B emite factura número 1 del mismo año 2026 (debe permitirlo)
+    # Empresa B emite factura número 1 del mismo año 2026 (debe permitirlo, mismo número)
     inv_b = client.post(
-        "/received-invoices",
+        "/invoices",
         json={
             "date": "2026-01-15",
             "third_party_id": third_b["id"],
-            "supplier_number": "F-001",
             "description": "Factura B",
             "base_amount": 200.00,
             "vat_rate": 21,
-            "expense_account_id": acc_b["id"],
         },
         headers={**headers, "X-Company-Id": str(company_b["id"])},
     )
     assert inv_b.status_code == 201
+    assert inv_b.json()["number"] == 1
 
-    # Empresa A no puede emitir factura número 1 del mismo año (debe fallar)
-    inv_a_dup = client.post(
-        "/received-invoices",
+    # Empresa A emite otra factura: debería ser número 2 (correlativo dentro de su empresa)
+    inv_a_2 = client.post(
+        "/invoices",
         json={
-            "date": "2026-01-15",
+            "date": "2026-01-16",
             "third_party_id": third_a["id"],
-            "supplier_number": "F-001",
-            "description": "Factura A duplicada",
-            "base_amount": 300.00,
+            "description": "Factura A segunda",
+            "base_amount": 150.00,
             "vat_rate": 21,
-            "expense_account_id": acc_a["id"],
         },
         headers={**headers, "X-Company-Id": str(company_a["id"])},
     )
-    assert inv_a_dup.status_code == 409
+    assert inv_a_2.status_code == 201
+    assert inv_a_2.json()["number"] == 2

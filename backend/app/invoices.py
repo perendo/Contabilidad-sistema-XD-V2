@@ -86,8 +86,14 @@ def create_invoice(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no válido"
         )
-    sales_account = db.query(Account).filter(Account.code == "7000").first()
-    vat_account = db.query(Account).filter(Account.code == "4770").first()
+    sales_account = (
+        db.query(Account)
+        .filter(Account.code == "7000", Account.company_id == company_id)
+        .first()
+    )
+    vat_account = (
+        db.query(Account).filter(Account.code == "4770", Account.company_id == company_id).first()
+    )
     if sales_account is None or vat_account is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -102,11 +108,16 @@ def create_invoice(
         irpf_amount = body.irpf_amount
     total = body.base_amount + vat_amount - irpf_amount
     year = body.date.year
-    # Serializa la asignación del número por ejercicio para evitar correlativos duplicados.
+    # Serializa la asignación del número por ejercicio y empresa para evitar correlativos duplicados.
     if db.bind.dialect.name == "postgresql":
-        db.execute(text("SELECT pg_advisory_xact_lock(:year)"), {"year": year})
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:year, :company_id)"),
+            {"year": year, "company_id": company_id},
+        )
     last_number = (
-        db.query(func.max(Invoice.number)).filter(Invoice.year == year).scalar()
+        db.query(func.max(Invoice.number))
+        .filter(Invoice.year == year, Invoice.company_id == company_id)
+        .scalar()
     )
     number = (last_number or 0) + 1
     description = f"Factura {year}/{number:04d} - {third_party.name}"
