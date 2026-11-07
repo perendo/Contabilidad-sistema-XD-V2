@@ -1,10 +1,24 @@
 import pytest
 import shutil
+from datetime import date, datetime
+from decimal import Decimal
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.config import settings
+from app.models import ReceivedInvoicePending
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
 
 _tesseract_available = shutil.which("tesseract") is not None
+
+TestingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=create_engine(settings.test_database_url, pool_pre_ping=True),
+)
 
 
 def _login(client):
@@ -2213,3 +2227,74 @@ def test_extract_job_is_isolated_by_company(client):
     response = client.get(f"/received-invoices/jobs/{job_id}", headers=headers)
 
     assert response.status_code == 404
+
+
+def test_list_received_invoices_paginates_with_limit_and_offset(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, supplier = _setup_accounts_and_supplier(client, headers)
+
+    invoice_ids = []
+    for index in (1, 2, 3):
+        created = client.post(
+            "/received-invoices",
+            json={
+                "date": f"2026-05-0{index}",
+                "supplier_id": supplier["id"],
+                "supplier_number": f"F-PAG-{index}",
+                "description": "Compra",
+                "base_amount": 100,
+                "vat_rate": 21,
+                "expense_account_id": accounts["6000"]["id"],
+            },
+            headers=headers,
+        ).json()
+        invoice_ids.append(created["id"])
+
+    first_page = client.get(
+        "/received-invoices", params={"limit": 2, "offset": 0}, headers=headers
+    ).json()
+    second_page = client.get(
+        "/received-invoices", params={"limit": 2, "offset": 2}, headers=headers
+    ).json()
+
+    assert [invoice["id"] for invoice in first_page] == invoice_ids[:2]
+    assert [invoice["id"] for invoice in second_page] == invoice_ids[2:]
+
+
+def test_list_pending_invoices_paginates_with_limit_and_offset(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    company_id = int(client.cookies.get("active_company_id"))
+
+    db = TestingSessionLocal()
+    pending_ids = []
+    try:
+        for index in (1, 2, 3):
+            pending = ReceivedInvoicePending(
+                company_id=company_id,
+                supplier_number=f"F-PEND-{index}",
+                date=date(2026, 5, index),
+                base_amount=Decimal("100"),
+                vat_rate=Decimal("21"),
+                status="pendiente",
+                file_path="",
+                filename="",
+                created_at=datetime(2026, 1, 1, 12, 0, index),
+            )
+            db.add(pending)
+            db.flush()
+            pending_ids.append(pending.id)
+        db.commit()
+    finally:
+        db.close()
+
+    first_page = client.get(
+        "/received-invoices/pending", params={"limit": 2, "offset": 0}, headers=headers
+    ).json()
+    second_page = client.get(
+        "/received-invoices/pending", params={"limit": 2, "offset": 2}, headers=headers
+    ).json()
+
+    assert [invoice["id"] for invoice in first_page] == pending_ids[::-1][:2]
+    assert [invoice["id"] for invoice in second_page] == pending_ids[::-1][2:]

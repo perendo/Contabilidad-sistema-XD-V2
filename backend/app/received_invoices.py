@@ -9,7 +9,7 @@ import defusedxml.ElementTree as ET
 from datetime import datetime as DateTime
 from io import BytesIO
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
@@ -651,6 +651,8 @@ def create_received_invoice(
 
 @router.get("/received-invoices", response_model=list[ReceivedInvoiceOut])
 def list_received_invoices(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
@@ -658,11 +660,13 @@ def list_received_invoices(
     q = db.query(ReceivedInvoice)
     if company_id is not None:
         q = q.filter(ReceivedInvoice.company_id == company_id)
-    return q.order_by(ReceivedInvoice.date, ReceivedInvoice.id).all()
+    return q.order_by(ReceivedInvoice.date, ReceivedInvoice.id).offset(offset).limit(limit).all()
 
 
 @router.get("/received-invoices/pending", response_model=list[ReceivedInvoicePendingOut])
 def list_pending_invoices(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
@@ -672,7 +676,12 @@ def list_pending_invoices(
     )
     if company_id is not None:
         q = q.filter(ReceivedInvoicePending.company_id == company_id)
-    return q.order_by(ReceivedInvoicePending.created_at.desc()).all()
+    return (
+        q.order_by(ReceivedInvoicePending.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/received-invoices/pending/{pending_id}", response_model=ReceivedInvoicePendingOut)

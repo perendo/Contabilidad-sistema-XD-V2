@@ -163,6 +163,8 @@ def list_entries(
     date_to: DateType | None = Query(default=None),
     end_date: DateType | None = Query(default=None),
     to_date: DateType | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
@@ -181,7 +183,7 @@ def list_entries(
         q = q.filter(JournalEntry.date >= start)
     if end is not None:
         q = q.filter(JournalEntry.date <= end)
-    return q.order_by(JournalEntry.id).all()
+    return q.order_by(JournalEntry.id).offset(offset).limit(limit).all()
 
 
 @router.put("/journal-entries/{entry_id}", response_model=JournalEntryOut)

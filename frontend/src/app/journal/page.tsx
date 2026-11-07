@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
+import PaginationBar from "@/components/PaginationBar";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, parseAmount } from "@/lib/format";
 import {
@@ -67,12 +68,16 @@ const STATUS_LABEL: Record<string, string> = {
   annulled: "Anulado",
 };
 
+const PAGE_SIZE = 50;
+
 export default function JournalPage() {
   const router = useRouter();
   const { mode, toggle } = useThemeMode();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [form, setForm] = useState(() => ({
     date: "",
     description: "",
@@ -91,14 +96,23 @@ export default function JournalPage() {
     load();
   }, [router]);
 
-  async function load() {
+  async function load(nextPage = page) {
     try {
-      const [accs, ents] = await Promise.all([api("/accounts"), api("/journal-entries")]);
+      const [accs, ents] = await Promise.all([
+        api("/accounts?limit=500"),
+        api(`/journal-entries?limit=${PAGE_SIZE}&offset=${nextPage * PAGE_SIZE}`),
+      ]);
       setAccounts(accs);
       setEntries(ents);
+      setHasMore(ents.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
     }
+  }
+
+  function goToPage(nextPage: number) {
+    setPage(nextPage);
+    load(nextPage);
   }
 
   function updateLine(index: number, patch: Partial<LineForm>) {
@@ -312,6 +326,12 @@ export default function JournalPage() {
             </TableBody>
           </Table>
         </Paper>
+        <PaginationBar
+          page={page}
+          hasMore={hasMore}
+          onPrevious={() => goToPage(page - 1)}
+          onNext={() => goToPage(page + 1)}
+        />
       </Container>
     </>
   );

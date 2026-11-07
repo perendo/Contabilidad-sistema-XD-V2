@@ -1,7 +1,7 @@
 from datetime import date as DateType
 from decimal import Decimal, ROUND_HALF_UP
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
@@ -196,6 +196,8 @@ def create_invoice(
 
 @router.get("/invoices", response_model=list[InvoiceOut])
 def list_invoices(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
@@ -203,7 +205,7 @@ def list_invoices(
     q = db.query(Invoice)
     if company_id is not None:
         q = q.filter(Invoice.company_id == company_id)
-    return q.order_by(Invoice.year, Invoice.number).all()
+    return q.order_by(Invoice.year, Invoice.number).offset(offset).limit(limit).all()
 
 
 class InvoicePayIn(BaseModel):

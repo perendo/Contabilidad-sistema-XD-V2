@@ -419,3 +419,34 @@ def test_issued_invoice_and_its_collection_entry_record_the_author(client):
     entries = client.get("/journal-entries", headers=headers).json()
     collection_entry = next(e for e in entries if e["id"] != invoice["entry_id"])
     assert collection_entry["author"] == "facturador@example.com"
+
+
+def test_list_invoices_paginates_with_limit_and_offset(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    _, client_third_party = _setup_accounts_and_client(client, headers)
+
+    invoice_ids = []
+    for day in (5, 6, 7):
+        created = client.post(
+            "/invoices",
+            json={
+                "date": f"2026-07-0{day}",
+                "client_id": client_third_party["id"],
+                "description": "Servicio",
+                "base_amount": 100,
+                "vat_rate": 21,
+            },
+            headers=headers,
+        ).json()
+        invoice_ids.append(created["id"])
+
+    first_page = client.get(
+        "/invoices", params={"limit": 2, "offset": 0}, headers=headers
+    ).json()
+    second_page = client.get(
+        "/invoices", params={"limit": 2, "offset": 2}, headers=headers
+    ).json()
+
+    assert [invoice["id"] for invoice in first_page] == invoice_ids[:2]
+    assert [invoice["id"] for invoice in second_page] == invoice_ids[2:]

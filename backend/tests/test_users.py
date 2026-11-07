@@ -89,3 +89,28 @@ def test_reject_weak_password_login(client):
         json={"email": TEST_EMAIL, "password": "abc"},
     )
     assert response.status_code == 400
+
+
+def test_list_users_paginates_with_limit_and_offset(client):
+    headers = _auth_headers(client)
+
+    for index in (1, 2, 3):
+        created = client.post(
+            "/users",
+            json={"email": f"pag{index}@example.com", "password": "clave123"},
+            headers=headers,
+        )
+        assert created.status_code == 201
+
+    first_page = client.get(
+        "/users", params={"limit": 2, "offset": 0}, headers=headers
+    ).json()
+    second_page = client.get(
+        "/users", params={"limit": 2, "offset": 2}, headers=headers
+    ).json()
+
+    assert [user["email"] for user in first_page] == [TEST_EMAIL, "pag1@example.com"]
+    assert [user["email"] for user in second_page] == [
+        "pag2@example.com",
+        "pag3@example.com",
+    ]

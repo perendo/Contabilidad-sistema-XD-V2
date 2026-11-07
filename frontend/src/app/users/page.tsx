@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PaginationBar from "@/components/PaginationBar";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
@@ -21,6 +22,8 @@ import {
 
 type User = { id: number; email: string };
 
+const PAGE_SIZE = 50;
+
 export default function UsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -29,38 +32,50 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
-    (async () => {
-      try {
-        const list = await api("/users");
-        setUsers(list);
-      } catch {
-        await clearSession();
-        router.push("/login");
-        return;
-      } finally {
-        setLoading(false);
-      }
-    })();
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  async function load(nextPage = page) {
+    try {
+      const list = await api(
+        `/users?limit=${PAGE_SIZE}&offset=${nextPage * PAGE_SIZE}`
+      );
+      setUsers(list);
+      setHasMore(list.length === PAGE_SIZE);
+    } catch {
+      await clearSession();
+      router.push("/login");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function goToPage(nextPage: number) {
+    setPage(nextPage);
+    load(nextPage);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setSaving(true);
     try {
-      const created = await api("/users", {
+      await api("/users", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      setUsers((prev) => [...prev, created]);
       setEmail("");
       setPassword("");
+      load();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -112,6 +127,12 @@ export default function UsersPage() {
                 ))}
               </List>
             </Paper>
+            <PaginationBar
+              page={page}
+              hasMore={hasMore}
+              onPrevious={() => goToPage(page - 1)}
+              onNext={() => goToPage(page + 1)}
+            />
           </>
         )}
       </Container>

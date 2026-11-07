@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
+import PaginationBar from "@/components/PaginationBar";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, formatEuro, parseAmount } from "@/lib/format";
 import {
@@ -66,6 +67,8 @@ function formatDate(iso: string): string {
   return `${day}/${month}/${year}`;
 }
 
+const PAGE_SIZE = 50;
+
 export default function InvoicesPage() {
   const router = useRouter();
   const { mode, toggle } = useThemeMode();
@@ -73,6 +76,8 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [form, setForm] = useState(emptyForm());
 
   useEffect(() => {
@@ -90,17 +95,23 @@ export default function InvoicesPage() {
     load();
   }, [router]);
 
-  async function load() {
+  async function load(nextPage = page) {
     try {
       const [parties, invs] = await Promise.all([
         api("/third-parties?type=Cliente"),
-        api("/invoices"),
+        api(`/invoices?limit=${PAGE_SIZE}&offset=${nextPage * PAGE_SIZE}`),
       ]);
       setClients(parties);
       setInvoices(invs);
+      setHasMore(invs.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
     }
+  }
+
+  function goToPage(nextPage: number) {
+    setPage(nextPage);
+    load(nextPage);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -288,6 +299,12 @@ export default function InvoicesPage() {
             </TableBody>
           </Table>
         </Paper>
+        <PaginationBar
+          page={page}
+          hasMore={hasMore}
+          onPrevious={() => goToPage(page - 1)}
+          onNext={() => goToPage(page + 1)}
+        />
       </Container>
     </>
   );

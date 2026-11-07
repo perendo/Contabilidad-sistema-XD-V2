@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
+import PaginationBar from "@/components/PaginationBar";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
@@ -38,6 +39,7 @@ type Account = {
 };
 
 const TYPES = ["Activo", "Pasivo", "Patrimonio Neto", "Ingreso", "Gasto"];
+const PAGE_SIZE = 50;
 
 export default function AccountsPage() {
   const router = useRouter();
@@ -45,6 +47,8 @@ export default function AccountsPage() {
   const [search, setSearch] = useState("");
   const { mode, toggle } = useThemeMode();
   const [error, setError] = useState("");
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -62,18 +66,29 @@ export default function AccountsPage() {
     load();
   }, [router]);
 
-  async function load(q?: string) {
+  async function load(q?: string, nextPage = page) {
     try {
-      const data = await api(`/accounts${q ? `?search=${encodeURIComponent(q)}` : ""}`);
+      const params = new URLSearchParams();
+      if (q) params.set("search", q);
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(nextPage * PAGE_SIZE));
+      const data = await api(`/accounts?${params.toString()}`);
       setAccounts(data);
+      setHasMore(data.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
     }
   }
 
+  function goToPage(nextPage: number) {
+    setPage(nextPage);
+    load(search, nextPage);
+  }
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    load(search);
+    setPage(0);
+    load(search, 0);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -237,6 +252,12 @@ export default function AccountsPage() {
             </TableBody>
           </Table>
         </Paper>
+        <PaginationBar
+          page={page}
+          hasMore={hasMore}
+          onPrevious={() => goToPage(page - 1)}
+          onNext={() => goToPage(page + 1)}
+        />
       </Container>
     </>
   );

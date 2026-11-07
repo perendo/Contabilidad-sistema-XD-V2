@@ -1,7 +1,7 @@
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
 
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -912,3 +912,84 @@ def test_journal_entries_list_uses_constant_queries(client, count_queries):
 
     assert len(large) == len(small)
     assert len(response.json()) == 5
+
+
+def test_list_entries_paginates_with_limit_and_offset(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    acc_debit = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_credit = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    entry_ids = []
+    for day in (10, 11, 12):
+        created = client.post(
+            "/journal-entries",
+            json={
+                "date": f"2026-04-{day:02d}",
+                "description": f"Asiento {day}",
+                "lines": [
+                    {"account_id": acc_debit["id"], "description": "D", "debit": 10, "credit": 0},
+                    {"account_id": acc_credit["id"], "description": "H", "debit": 0, "credit": 10},
+                ],
+            },
+            headers=headers,
+        ).json()
+        entry_ids.append(created["id"])
+
+    first_page = client.get(
+        "/journal-entries", params={"limit": 2, "offset": 0}, headers=headers
+    ).json()
+    second_page = client.get(
+        "/journal-entries", params={"limit": 2, "offset": 2}, headers=headers
+    ).json()
+
+    assert [entry["id"] for entry in first_page] == entry_ids[:2]
+    assert [entry["id"] for entry in second_page] == entry_ids[2:]
+
+
+def test_list_entries_uses_default_page_size(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    acc_debit = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_credit = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    start = date(2026, 1, 1)
+    for index in range(51):
+        entry_date = (start + timedelta(days=index)).isoformat()
+        created = client.post(
+            "/journal-entries",
+            json={
+                "date": entry_date,
+                "description": f"Asiento {index}",
+                "lines": [
+                    {"account_id": acc_debit["id"], "description": "D", "debit": 10, "credit": 0},
+                    {"account_id": acc_credit["id"], "description": "H", "debit": 0, "credit": 10},
+                ],
+            },
+            headers=headers,
+        )
+        assert created.status_code == 201
+
+    default_page = client.get("/journal-entries", headers=headers).json()
+    full_page = client.get(
+        "/journal-entries", params={"limit": 200}, headers=headers
+    ).json()
+
+    assert len(default_page) == 50
+    assert len(full_page) == 51
