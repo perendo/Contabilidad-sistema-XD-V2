@@ -36,10 +36,7 @@ def get_active_company_id(
         )
         if membership is not None:
             return membership.company_id
-        # Último recurso: primera sociedad existente (solo si no hay membresías)
-        company = db.query(Company).order_by(Company.id).first()
-        if company is not None:
-            return company.id
+        # Sin membresía: no se asume ninguna empresa
         return None
 
     # Validar que el usuario sea miembro de la empresa solicitada
