@@ -20,7 +20,7 @@ from .database import get_db
 from .invoices import ALLOWED_VAT_RATES, CENT
 from .document_storage import build_file_path, documents_root, write_document
 from .journal_entries import JournalLineIn, add_accepted_entry
-from .models import Account, Document, ReceivedInvoice, ThirdParty, User
+from .models import Account, Document, JournalEntry, ReceivedInvoice, ThirdParty, User
 
 router = APIRouter(tags=["received-invoices"])
 
@@ -124,7 +124,7 @@ def extract_received_invoice(
         text = _extract_pdf_text(content)
     else:
         text = _extract_image_text(content)
-    data = _parse_pdf_text(text)
+    data = _parse_invoice_text(text)
 
     temp_file_id = uuid4().hex
     suffix = Path(filename).suffix.lower()
@@ -151,6 +151,21 @@ def extract_received_invoice(
         total=float(data["total"]) if data.get("total") is not None else None,
         temp_file_id=temp_file_id,
     )
+
+
+def attach_document_to_entry(db: Session, entry: JournalEntry, filename: str, content_type: str, content: bytes) -> None:
+    file_path = build_file_path(db, entry, filename, content_type)
+    write_document(file_path, content)
+    doc = Document(
+        entry_id=entry.id,
+        filename=filename[:255],
+        content_type=content_type,
+        size=len(content),
+        file_path=file_path,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(entry)
 
 
 @router.post(
@@ -228,21 +243,8 @@ def confirm_received_invoice(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    from .models import JournalEntry as JE
-
-    je = db.query(JE).filter(JE.id == invoice.entry_id).first()
-    file_path = build_file_path(db, je, filename, content_type)
-    write_document(file_path, content)
-    doc = Document(
-        entry_id=invoice.entry_id,
-        filename=filename[:255],
-        content_type=content_type,
-        size=len(content),
-        file_path=file_path,
-    )
-    db.add(doc)
-    db.commit()
-    db.refresh(invoice)
+    entry = db.query(JournalEntry).filter(JournalEntry.id == invoice.entry_id).first()
+    attach_document_to_entry(db, entry, filename, content_type, content)
 
     try:
         content_path.unlink(missing_ok=True)
@@ -624,7 +626,7 @@ def _extract_image_text(content):
     return text
 
 
-def _parse_pdf_text(text):
+def _parse_invoice_text(text):
     def first(pattern):
         match = re.search(pattern, text, re.IGNORECASE)
         return match.group(1).strip() if match else None
@@ -708,15 +710,8 @@ def _create_from_extracted(data, content, filename, content_type, expense_accoun
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    from .models import JournalEntry as JE
-
-    je = db.query(JE).filter(JE.id == invoice.entry_id).first()
-    file_path = build_file_path(db, je, filename, content_type)
-    write_document(file_path, content)
-    doc = Document(entry_id=invoice.entry_id, filename=filename[:255], content_type=content_type, size=len(content), file_path=file_path)
-    db.add(doc)
-    db.commit()
-    db.refresh(invoice)
+    entry = db.query(JournalEntry).filter(JournalEntry.id == invoice.entry_id).first()
+    attach_document_to_entry(db, entry, filename, content_type, content)
 
     return {
         "supplier_created": created,
@@ -752,7 +747,7 @@ def import_received_invoice(
     media_type = (file.content_type or "").lower()
     is_pdf = filename.lower().endswith(".pdf") or media_type == "application/pdf"
     if is_pdf:
-        data = _parse_pdf_text(_extract_pdf_text(content))
+        data = _parse_invoice_text(_extract_pdf_text(content))
         content_type = "application/pdf"
     else:
         data = _parse_facturae(content)
