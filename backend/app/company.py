@@ -1,5 +1,7 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,11 +20,18 @@ class CompanyIn(BaseModel):
     tax_id: str
     address: str
     fiscal_year: str
+    approval_threshold: Decimal | None = None
 
 
 class CompanyOut(CompanyIn):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("approval_threshold")
+    def _serialize_threshold(self, v: Decimal | None) -> str | None:
+        if v is None:
+            return None
+        return f"{v:.2f}"
 
 
 @router.get("", response_model=CompanyOut)
@@ -47,6 +56,11 @@ def upsert_company(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> Company:
+    if body.approval_threshold is not None and body.approval_threshold <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El importe umbral debe ser positivo",
+        )
     if company_id is not None:
         company = db.query(Company).filter(Company.id == company_id).first()
     else:
@@ -59,6 +73,7 @@ def upsert_company(
         company.tax_id = body.tax_id
         company.address = body.address
         company.fiscal_year = body.fiscal_year
+        company.approval_threshold = body.approval_threshold
     try:
         db.commit()
     except IntegrityError:

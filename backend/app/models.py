@@ -22,6 +22,9 @@ class Company(Base):
     tax_id: Mapped[str] = mapped_column(String(50))
     address: Mapped[str] = mapped_column(String(500))
     fiscal_year: Mapped[str] = mapped_column(String(20))
+    approval_threshold: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True
+    )
 
 
 class Account(Base):

@@ -38,6 +38,53 @@ def test_create_company_data_persists_and_returns(client):
     assert suspense["is_detail"] is True
 
 
+def test_company_save_approval_threshold_returns_it(client):
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "5000.00",
+    }
+    put = client.put("/company", json=payload, headers=headers)
+    assert put.status_code == 200
+    assert put.json()["approval_threshold"] == "5000.00"
+
+    get = client.get("/company", headers=headers)
+    assert get.status_code == 200
+    assert get.json()["approval_threshold"] == "5000.00"
+
+
+def test_company_rejects_invalid_approval_threshold(client):
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "0",
+    }
+    put = client.put("/company", json=payload, headers=headers)
+    assert put.status_code == 400
+
+    get = client.get("/company", headers=headers)
+    assert get.status_code == 200
+    assert get.json()["approval_threshold"] is None
+
+
 def test_update_company_does_not_reseed_pgc_when_accounts_exist(client, monkeypatch):
     login = client.post(
         "/auth/login",
