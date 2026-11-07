@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
-from app.models import Company, User
+from app.models import Company, CompanyMembership, User
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
@@ -28,9 +28,18 @@ def _seed_user():
             hashed = bcrypt.hashpw(TEST_PASSWORD.encode(), bcrypt.gensalt()).decode()
             db.add(User(email=TEST_EMAIL, password_hash=hashed))
             db.commit()
+        user = db.query(User).filter(User.email == TEST_EMAIL).first()
         if not db.query(Company).first():
             db.add(Company(name="Empresa Test", tax_id="B00000000", address="", fiscal_year="2026"))
             db.commit()
+        company = db.query(Company).first()
+        if company is not None:
+            if not db.query(CompanyMembership).filter(
+                CompanyMembership.user_id == user.id,
+                CompanyMembership.company_id == company.id,
+            ).first():
+                db.add(CompanyMembership(user_id=user.id, company_id=company.id, role="admin"))
+                db.commit()
     finally:
         db.close()
 

@@ -132,7 +132,11 @@ class ThirdParty(Base):
 
 class Invoice(Base):
     __tablename__ = "invoices"
-    __table_args__ = (UniqueConstraint("year", "number", name="uq_invoices_year_number"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "year", "number", name="uq_invoices_company_year_number"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
@@ -225,3 +229,18 @@ class ReceivedInvoicePending(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.now)
 
     company: Mapped["Company | None"] = relationship("Company")
+
+
+class CompanyMembership(Base):
+    __tablename__ = "company_memberships"
+    __table_args__ = (
+        UniqueConstraint("user_id", "company_id", name="uq_company_memberships_user_company"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(50), default="admin")
+
+    user: Mapped["User"] = relationship("User")
+    company: Mapped["Company"] = relationship("Company")

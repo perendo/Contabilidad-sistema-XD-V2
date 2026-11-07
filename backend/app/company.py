@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
-from .models import Account, Company, User
+from .models import Account, Company, CompanyMembership, User
 from .pgc_seed import seed_pgc
 
 router = APIRouter(prefix="/company", tags=["company"])
@@ -52,7 +52,7 @@ def get_company(
 @router.put("", response_model=CompanyOut)
 def upsert_company(
     body: CompanyIn,
-    _: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> Company:
@@ -68,7 +68,25 @@ def upsert_company(
     if company is None:
         company = Company(**body.model_dump())
         db.add(company)
+        db.flush()
+        membership = CompanyMembership(
+            user_id=current_user.id, company_id=company.id, role="admin"
+        )
+        db.add(membership)
     else:
+        membership = (
+            db.query(CompanyMembership)
+            .filter(
+                CompanyMembership.user_id == current_user.id,
+                CompanyMembership.company_id == company.id,
+            )
+            .first()
+        )
+        if membership is None:
+            membership = CompanyMembership(
+                user_id=current_user.id, company_id=company.id, role="admin"
+            )
+            db.add(membership)
         company.name = body.name
         company.tax_id = body.tax_id
         company.address = body.address
@@ -91,20 +109,33 @@ def upsert_company(
 
 @companies_router.get("", response_model=list[CompanyOut])
 def list_companies(
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[Company]:
-    return db.query(Company).order_by(Company.id).all()
+    memberships = (
+        db.query(CompanyMembership)
+        .filter(CompanyMembership.user_id == current_user.id)
+        .all()
+    )
+    company_ids = [m.company_id for m in memberships]
+    if not company_ids:
+        return []
+    return db.query(Company).filter(Company.id.in_(company_ids)).order_by(Company.id).all()
 
 
 @companies_router.post("", response_model=CompanyOut, status_code=status.HTTP_201_CREATED)
 def create_company(
     body: CompanyIn,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Company:
     company = Company(**body.model_dump())
     db.add(company)
+    db.flush()
+    membership = CompanyMembership(
+        user_id=current_user.id, company_id=company.id, role="admin"
+    )
+    db.add(membership)
     db.commit()
     db.refresh(company)
     return company

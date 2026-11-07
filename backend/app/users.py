@@ -5,8 +5,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
-from .models import User
+from .models import CompanyMembership, User
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -33,8 +34,9 @@ def list_users(
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user(
     body: UserIn,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> User:
     user = User(
         email=body.email,
@@ -49,4 +51,10 @@ def create_user(
             status_code=status.HTTP_409_CONFLICT, detail="El email ya está registrado"
         )
     db.refresh(user)
+    if company_id is not None:
+        membership = CompanyMembership(
+            user_id=user.id, company_id=company_id, role="admin"
+        )
+        db.add(membership)
+        db.commit()
     return user
