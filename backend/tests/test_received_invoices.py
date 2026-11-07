@@ -1583,3 +1583,209 @@ def test_reject_pending_invoice_marks_rejected_no_entry(client):
     # no se creó factura ni asiento
     assert client.get("/journal-entries", headers=headers).json() == before_entries
     assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_approve_pending_invoice_records_approver_and_timestamp(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral bajo (100.00)
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "100.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    # crear cuenta de gasto, IVA y tercero existente
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4020", "name": "Proveedores test aprobar 2", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Aprobado SL",
+            "tax_id": "B77777777",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6030", "name": "Gasto test aprobar 2", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4731", "name": "IVA soportado test aprobar 2", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Aprobado SL\n"
+        "NIF: B77777777\n"
+        "Factura: F-APPR-002\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 1
+    pending_id = pending[0]["id"]
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    response = client.post(
+        f"/received-invoices/pending/{pending_id}/approve",
+        data={"third_party_id": str(tercero["id"]), "expense_account_id": str(gasto["id"])},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["supplier_number"] == "F-APPR-002"
+    assert data["entry_id"] is not None
+
+    # la factura fue creada en el listado de facturas recibidas
+    invoices = client.get("/received-invoices", headers=headers).json()
+    assert len(invoices) == len(before_invoices) + 1
+    approved = [i for i in invoices if i["supplier_number"] == "F-APPR-002"][0]
+    assert approved["approved_by"] == "test@example.com"
+    assert approved["approved_at"] is not None
+
+
+def test_approved_invoice_shows_approver_in_listing(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # crear sociedad con umbral alto (10000.00) para que la factura quede pendiente
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "10000.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    # crear cuenta de gasto, IVA y tercero existente
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4021", "name": "Proveedores test listado", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor Listado SL",
+            "tax_id": "B55555555",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6031", "name": "Gasto test listado", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4732", "name": "IVA soportado test listado", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Listado SL\n"
+        "NIF: B55555555\n"
+        "Factura: F-LIST-001\n"
+        "Fecha: 2026-02-01\n"
+        "Base imponible: 10000.00\n"
+        "IVA 21%: 2100.00\n"
+        "Total: 12100.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 1
+    pending_id = pending[0]["id"]
+
+    client.post(
+        f"/received-invoices/pending/{pending_id}/approve",
+        data={"third_party_id": str(tercero["id"]), "expense_account_id": str(gasto["id"])},
+        headers=headers,
+    )
+
+    invoices = client.get("/received-invoices", headers=headers).json()
+    factura = [i for i in invoices if i["supplier_number"] == "F-LIST-001"][0]
+    assert factura["approved_by"] == "test@example.com"
+    assert factura["approved_at"] is not None
+
+
+def test_unapproved_invoice_has_empty_approval_fields(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # crear cuenta de gasto, IVA y tercero existente
+    cuenta_4000 = client.post(
+        "/accounts",
+        json={"code": "4022", "name": "Proveedores test no aprobado", "type": "Pasivo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    tercero = client.post(
+        "/third-parties",
+        json={
+            "name": "Proveedor No Aprobado SL",
+            "tax_id": "B66666666",
+            "type": "proveedor",
+            "account_id": cuenta_4000["id"],
+        },
+        headers=headers,
+    ).json()
+    gasto = client.post(
+        "/accounts",
+        json={"code": "6032", "name": "Gasto test no aprobado", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    client.post(
+        "/accounts",
+        json={"code": "4720", "name": "IVA soportado test no aprobado", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    invoice_payload = {
+        "date": "2026-03-01",
+        "third_party_id": tercero["id"],
+        "supplier_number": "F-NOAP-001",
+        "description": "Factura sin aprobar",
+        "base_amount": 100.00,
+        "vat_rate": 21,
+        "expense_account_id": gasto["id"],
+    }
+    response = client.post("/received-invoices", json=invoice_payload, headers=headers)
+    assert response.status_code == 201
+
+    invoices = client.get("/received-invoices", headers=headers).json()
+    factura = [i for i in invoices if i["supplier_number"] == "F-NOAP-001"][0]
+    assert factura["approved_by"] is None
+    assert factura["approved_at"] is None

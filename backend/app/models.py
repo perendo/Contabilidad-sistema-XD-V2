@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Date, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -177,6 +177,8 @@ class ReceivedInvoice(Base):
     expense_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pendiente")
+    approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     third_party: Mapped["ThirdParty"] = relationship("ThirdParty")
     expense_account: Mapped["Account"] = relationship("Account")

@@ -50,7 +50,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 39. [x] Como administrador, quiero configurar un importe umbral a partir del cual una factura requiere aprobación, para que las operaciones de alto riesgo no se registren sin revisión. Requiere: #37
 40. [x] Como administrador, quiero que las facturas por debajo del umbral y sin avisos se registren automáticamente, para agilizar las facturas habituales. Requiere: #39
 41. [x] Como administrador, quiero una bandeja de facturas pendientes de aprobación donde ver el documento original, los datos extraídos y el motivo de la pausa, para aprobarlas o rechazarlas. Requiere: #39
-42. [ ] Como administrador, quiero que al aprobar una factura se cree el asiento contable y quede registrado quién y cuándo la aprobó, para mantener la trazabilidad. Requiere: #41
+42. [x] Como administrador, quiero que al aprobar una factura se cree el asiento contable y quede registrado quién y cuándo la aprobó, para mantener la trazabilidad. Requiere: #41
 43. [ ] Como administrador, quiero que las aprobaciones pendientes se conserven al cerrar sesión o reiniciar el sistema, para no perder trabajo. Requiere: #41
 44. [ ] Como administrador, quiero poder rechazar una factura propuesta indicando el motivo, para corregirla o descartarla. Requiere: #41
 

@@ -94,6 +94,8 @@ class ReceivedInvoiceOut(BaseModel):
     expense_account_id: int
     entry_id: int | None
     status: str
+    approved_by: str | None = None
+    approved_at: DateTime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -651,6 +653,10 @@ def approve_pending_invoice(
     entry = db.query(JournalEntry).filter(JournalEntry.id == invoice.entry_id).first()
     content = read_document(pending.file_path)
     attach_document_to_entry(db, entry, pending.filename, pending.content_type, content)
+
+    invoice.approved_by = user.email
+    invoice.approved_at = DateTime.now()
+    db.add(invoice)
 
     pending.status = "aprobado"
     db.add(pending)
