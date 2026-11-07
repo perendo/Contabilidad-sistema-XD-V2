@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import re
 import json
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from datetime import datetime as DateTime
 from io import BytesIO
 
@@ -923,7 +923,15 @@ def _extract_image_text(content):
 
     try:
         image = Image.open(BytesIO(content))
+        # Validar dimensiones de la imagen para evitar bombas de píxeles
+        if image.width > 10000 or image.height > 10000:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La imagen es demasiado grande. Dimensiones máximas: 10000x10000 píxeles",
+            )
         text = pytesseract.image_to_string(image, lang="spa")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

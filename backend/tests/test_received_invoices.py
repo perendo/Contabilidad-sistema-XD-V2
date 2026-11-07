@@ -2141,3 +2141,31 @@ def test_extract_xml_with_xxe_returns_400(client):
     # No se debe crear entrada en la bandeja de pendientes
     pending = client.get("/received-invoices/pending", headers=headers).json()
     assert len(pending) == 0
+
+
+def test_extract_pdf_bomb_returns_400(client):
+    """Dado un PDF con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # Crear un PDF con muchas páginas vacías (bomba de descompresión)
+    pdf_content = b"%PDF-1.4\n"
+    for i in range(1, 101):
+        pdf_content += f"{i*3-2} 0 obj\n<< /Type /Page /Parent {i*3-1} 0 R /MediaBox [0 0 612 792] >>\nendobj\n".encode()
+        pdf_content += f"{i*3-1} 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n".encode()
+
+    pdf_bytes = pdf_content
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    # No se debe crear entrada en la bandeja de pendientes
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 0
