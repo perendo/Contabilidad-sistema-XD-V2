@@ -1065,3 +1065,110 @@ def test_extract_received_invoice_from_image_returns_data_without_creating_entry
 
     assert client.get("/journal-entries", headers=headers).json() == before_entries
     assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_extract_received_invoice_with_vat_inconsistency_returns_warnings_without_creating_entry(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-002\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 25.00\n"
+        "Total: 125.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["nif"] == "B12345678"
+    assert data["base"] == 100.0
+    assert data["vat_rate"] == 21.0
+    assert data["vat_amount"] == 25.0
+    assert len(data["warnings"]) > 0
+    assert any("IVA" in w or "cuota" in w.lower() for w in data["warnings"])
+
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_extract_received_invoice_with_total_inconsistency_returns_warnings_without_creating_entry(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    pdf_text = (
+        "Proveedor: Proveedor Test SL\n"
+        "NIF: B12345678\n"
+        "Factura: F-003\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 130.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["nif"] == "B12345678"
+    assert data["base"] == 100.0
+    assert data["vat_rate"] == 21.0
+    assert data["vat_amount"] == 21.0
+    assert data["total"] == 130.0
+    assert len(data["warnings"]) > 0
+    assert any("total" in w.lower() for w in data["warnings"])
+
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices
+
+
+def test_extract_received_invoice_without_supplier_returns_warnings_without_creating_entry(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    before_entries = client.get("/journal-entries", headers=headers).json()
+    before_invoices = client.get("/received-invoices", headers=headers).json()
+
+    pdf_text = (
+        "Factura: F-004\n"
+        "Fecha: 2026-01-15\n"
+        "Base imponible: 100.00\n"
+        "IVA 21%: 21.00\n"
+        "Total: 121.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["nif"] is None or data["nif"] == ""
+    assert data["name"] is None or data["name"] == ""
+    assert data["number"] == "F-004"
+    assert data["base"] == 100.0
+    assert len(data["warnings"]) > 0
+    assert any("proveedor" in w.lower() for w in data["warnings"])
+
+    assert client.get("/journal-entries", headers=headers).json() == before_entries
+    assert client.get("/received-invoices", headers=headers).json() == before_invoices

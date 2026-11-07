@@ -88,8 +88,8 @@ class ReceivedInvoiceOut(BaseModel):
 
 
 class ExtractedDataOut(BaseModel):
-    nif: str
-    name: str
+    nif: str | None = None
+    name: str | None = None
     number: str
     date: DateType
     base: float
@@ -97,6 +97,7 @@ class ExtractedDataOut(BaseModel):
     vat_amount: float | None = None
     total: float | None = None
     temp_file_id: str
+    warnings: list[str] = []
 
 
 @router.post("/received-invoices/extract", status_code=status.HTTP_200_OK)
@@ -126,6 +127,26 @@ def extract_received_invoice(
         text = _extract_image_text(content)
     data = _parse_invoice_text(text)
 
+    warnings: list[str] = []
+    vat_amount = data.get("vat_amount")
+    if vat_amount is not None and data["base"] > 0:
+        expected_vat = (data["base"] * data["vat_rate"] / 100).quantize(
+            CENT, rounding=ROUND_HALF_UP
+        )
+        if abs(expected_vat - Decimal(str(vat_amount))) > Decimal("0.01"):
+            warnings.append(
+                "La cuota de IVA extraída no coincide con la base y el tipo de IVA"
+            )
+    total = data.get("total")
+    if total is not None and vat_amount is not None and data["base"] > 0:
+        expected_total = data["base"] + Decimal(str(vat_amount))
+        if abs(expected_total - Decimal(str(total))) > Decimal("0.01"):
+            warnings.append(
+                "El total extraído no coincide con la base más la cuota de IVA"
+            )
+    if not data.get("nif") and not data.get("name"):
+        warnings.append("Proveedor no identificado: falta NIF o nombre")
+
     temp_file_id = uuid4().hex
     suffix = Path(filename).suffix.lower()
     temp_path = documents_root() / "temp" / f"{temp_file_id}{suffix}"
@@ -147,9 +168,10 @@ def extract_received_invoice(
         date=data["date"],
         base=float(data["base"]),
         vat_rate=float(data["vat_rate"]),
-        vat_amount=float(data["vat_amount"]) if data.get("vat_amount") is not None else None,
+        vat_amount=float(vat_amount) if vat_amount is not None else None,
         total=float(data["total"]) if data.get("total") is not None else None,
         temp_file_id=temp_file_id,
+        warnings=warnings,
     )
 
 
@@ -641,10 +663,9 @@ def _parse_invoice_text(text):
     date_str = first(r"Fecha[:\s]*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[/\-][0-9]{1,2}[/\-][0-9]{2,4})")
     base_str = first(r"Base imponible[:\s]*([0-9.,]+)")
     vat_str = first(r"IVA[^\n\r]*?([0-9]{1,2}(?:[.,][0-9]+)?)\s*%")
+    vat_amount_str = first(r"IVA[^\n\r]*?[0-9]{1,2}(?:[.,][0-9]+)?\s*%[:\s]*([0-9.,]+)")
     total_str = first(r"Total[:\s]*([0-9.,]+)")
 
-    if not nif:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro el NIF del proveedor")
     if not number:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontro el numero de factura")
     if not date_str:
@@ -672,13 +693,17 @@ def _parse_invoice_text(text):
     vat_rate = Decimal(vat_str.replace(",", ".")) if vat_str else Decimal("0")
     if vat_rate not in ALLOWED_VAT_RATES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de IVA no valido")
+    vat_amount = parse_decimal(vat_amount_str) if vat_amount_str else None
+    total = parse_decimal(total_str) if total_str else None
     return {
-        "nif": nif.replace(" ", ""),
+        "nif": nif.replace(" ", "") if nif else None,
         "name": name,
         "number": number,
         "date": parsed_date,
         "base": base_amount,
         "vat_rate": vat_rate,
+        "vat_amount": vat_amount,
+        "total": total,
     }
 
 
