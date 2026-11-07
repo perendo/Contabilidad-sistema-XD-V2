@@ -1,20 +1,19 @@
 ## Story
-Como administrador, quiero que el sistema valide contraseñas y proteja contra ataques de fuerza bruta y temporización para evitar el acceso no autorizado.
+Como administrador, quiero que los archivos subidos (PDF, imagen, XML) se procesen de forma segura para evitar ataques de inyección o descompresión.
 
 ## Acceptance criteria
-- [ ] Dado un usuario autenticado, cuando intenta iniciar sesión con una contraseña débil (menos de 8 caracteres), entonces el sistema rechaza el registro o cambio de contraseña con un error.
-- [ ] Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces seguidas, entonces el sistema bloquea temporalmente el acceso tras varios intentos fallidos.
-- [ ] Dado un usuario que intenta iniciar sesión con un email inexistente, entonces el tiempo de respuesta es indistinguible del caso con email válido (evita enumeración de usuarios).
+- [ ] Dado un archivo PDF con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin procesar el archivo.
+- [ ] Dada una imagen con bomba de descompresión (bombas de píxeles), cuando se sube, entonces el sistema devuelve 400 sin procesar la imagen.
+- [ ] Dado un archivo XML FacturaE con entidades externas (XXE), cuando se sube, entonces el sistema devuelve 400 sin procesar entidades externas.
 
 ## Plan
-- Agregar validación de fortaleza de contraseña (mínimo 8 caracteres) en el registro y cambio de contraseña.
-- Implementar rate limiting en `/auth/login` y `/auth/token` para bloquear tras N intentos fallidos.
-- Asegurar que el sistema tarde lo mismo independientemente de si el usuario existe o no (usar bcrypt.checkpw siempre, incluso si el usuario no existe).
+- Agregar límite de dimensiones (píxeles) en imágenes antes de procesar con PIL para evitar decompression bombs.
+- Reemplazar `xml.etree.ElementTree.fromstring` por `defusedxml.parse` para parsear FacturaE de forma segura.
+- Agregar límite de tamaño de archivo PDF antes de procesar con pdfminer para evitar decompression bombs.
 
 ## Out of scope
-- Bloqueo permanente de cuentas (solo bloqueo temporal por tiempo).
-- Autenticación de dos factores (2FA).
-- Bloqueo por dirección IP (solo por email/usuario).
+- Sincronización de perfiles de importación bancaria entre sociedades (historia #25 ya cubre perfiles).
+- Cotejo a tres vías con órdenes de compra y albaranes (fuera de alcance del epic).
 
 ## Suggestions (your call)
-- Reutilizar la librería `passlib` ya instalada en el proyecto para validar fortaleza de contraseña, ya que ya está disponible como dependencia.
+- Reutilizar `pydantic-settings` para configurar los límites de tamaño de imagen y PDF como variables de entorno (`MAX_IMAGE_PIXELS`, `MAX_PDF_PAGES`), ya que ya está disponible como dependencia.

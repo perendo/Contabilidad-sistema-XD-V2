@@ -1982,3 +1982,162 @@ def test_get_pending_detail_shows_rejection_reason(client):
     assert data["supplier_number"] == "F-DET-001"
     assert data["status"] == "rechazado"
     assert data["reason"] == "Factura duplicada, no se aprueba"
+
+def test_extract_pdf_bomb_returns_400(client):
+    """Dado un PDF con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    pdf_bytes = b'%PDF-1.4\n1 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n2 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n5 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n7 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n8 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n10 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n11 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n12 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n13 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n14 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n15 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n16 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n17 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n18 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n19 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n20 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n21 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n22 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n23 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n24 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n25 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n26 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n27 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n28 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n29 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n31 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n32 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n33 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n34 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n35 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n36 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n37 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n38 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n39 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n40 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n41 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n42 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n43 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n44 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n45 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n46 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n47 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n48 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n49 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n50 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n51 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n52 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n53 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n54 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n55 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n56 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n57 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n58 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n59 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n60 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n61 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n62 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n63 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n64 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n65 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n66 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n67 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n68 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n69 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n70 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n71 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n72 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n73 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n74 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n75 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n76 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n77 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n78 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n79 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n80 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n81 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n82 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n83 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n84 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n85 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n86 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n87 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n88 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n89 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n90 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n91 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n92 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n93 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n94 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n95 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n96 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n97 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n98 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n99 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n100 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n101 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n102 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n103 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n104 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n105 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n106 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n107 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n108 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n109 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n110 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n111 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n112 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n113 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n114 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n115 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n116 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n117 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n118 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n119 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n120 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n121 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n122 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n123 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n124 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n125 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n126 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n127 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n128 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n129 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n130 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n131 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n132 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n133 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n134 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n135 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n136 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n137 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n138 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n139 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n140 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n141 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n142 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n143 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n144 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n145 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n146 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n147 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n148 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n149 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 50 700 Td (Test) Tj ET\nendstream\nendobj\n150 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [1 0 R 4 0 R 7 0 R 10 0 R 13 0 R 16 0 R 19 0 R 22 0 R 25 0 R 28 0 R 31 0 R 34 0 R 37 0 R 40 0 R 43 0 R 46 0 R 49 0 R 52 0 R 55 0 R 58 0 R 61 0 R 64 0 R 67 0 R 70 0 R 73 0 R 76 0 R 79 0 R 82 0 R 85 0 R 88 0 R 91 0 R 94 0 R 97 0 R 100 0 R 103 0 R 106 0 R 109 0 R 112 0 R 115 0 R 118 0 R 121 0 R 124 0 R 127 0 R 130 0 R 133 0 R 136 0 R 139 0 R 142 0 R 145 0 R 148 0 R] /Count 50 >>\nendobj\n'
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("bomb.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    # No se debe crear entrada en la bandeja de pendientes
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 0
+
+
+def test_rate_limit_after_failed_login_attempts(client):
+    """Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces,
+    entonces el sistema bloquea temporalmente el acceso tras varios intentos fallidos."""
+    headers = {"Authorization": f"Bearer {TEST_EMAIL}"}
+
+    # Intentar login con contraseña incorrecta 5 veces
+    for _ in range(5):
+        response = client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+        )
+        assert response.status_code == 401
+
+    # El siguiente intento debería ser rechazado con 429 (Too Many Requests)
+    response = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+    )
+    assert response.status_code == 429
+
+
+def test_rate_limit_after_failed_login_attempts(client):
+    """Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces,
+    entonces el sistema bloquea temporalmente el acceso tras varios intentos fallidos."""
+    headers = {"Authorization": f"Bearer {TEST_EMAIL}"}
+
+    # Intentar login con contraseña incorrecta 5 veces
+    for _ in range(5):
+        response = client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+        )
+        assert response.status_code == 401
+
+    # El siguiente intento debería ser rechazado con 429 (Too Many Requests)
+    response = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+    )
+    assert response.status_code == 429
+
+
+def test_rate_limit_after_failed_login_attempts(client):
+    """Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces,
+    entonces el sistema bloquea temporalmente el acceso tras varios intentos fallidos."""
+    headers = {"Authorization": f"Bearer {TEST_EMAIL}"}
+
+    # Intentar login con contraseña incorrecta 5 veces
+    for _ in range(5):
+        response = client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+        )
+        assert response.status_code == 401
+
+    # El siguiente intento debería ser rechazado con 429 (Too Many Requests)
+    response = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+    )
+    assert response.status_code == 429
+
+
+def test_rate_limit_after_failed_login_attempts(client):
+    """Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces,
+    entonces el sistema bloquea temporalmente el acceso tras varios intentos fallidos."""
+    headers = {"Authorization": f"Bearer {TEST_EMAIL}"}
+
+    # Intentar login con contraseña incorrecta 5 veces
+    for _ in range(5):
+        response = client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+        )
+        assert response.status_code == 401
+
+    # El siguiente intento debería ser rechazado con 429 (Too Many Requests)
+    response = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+    )
+    assert response.status_code == 429
+
+def test_extract_image_bomb_returns_400(client):
+    """Dada una imagen con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # Crear imagen PNG con dimensiones muy grandes (bomba de descompresión)
+    from PIL import Image
+    from io import BytesIO
+
+    img = Image.new("RGB", (50000, 50000), color=(255, 255, 255))
+    img_bytes_io = BytesIO()
+    img.save(img_bytes_io, format="PNG")
+    pdf_bytes = img_bytes_io.getvalue()
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.png", pdf_bytes, "image/png")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    # No se debe crear entrada en la bandeja de pendientes
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 0
+
+
+def test_extract_xml_with_xxe_returns_400(client):
+    """Dado un archivo XML FacturaE con entidades externas, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""
+    login = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    xml_content = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE foo [
+        <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+    <root>&xxe;</root>
+    """
+
+    response = client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.xml", xml_content, "application/xml")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    # No se debe crear entrada en la bandeja de pendientes
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 0
