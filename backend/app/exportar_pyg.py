@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Account, JournalEntry, JournalLine, User
 
@@ -21,7 +22,7 @@ def _sanitize_cell(val):
     return s
 
 
-def _compute_pyg(db: Session, date_from: date | None, date_to: date | None):
+def _compute_pyg(db: Session, date_from: date | None, date_to: date | None, company_id: int | None = None):
     rows = (
         db.query(
             Account.type,
@@ -32,6 +33,8 @@ def _compute_pyg(db: Session, date_from: date | None, date_to: date | None):
         .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
         .filter(JournalEntry.status == "accepted")
         .filter(Account.type.in_(("Ingreso", "Gasto")))
+        .filter(JournalEntry.company_id == company_id)
+        .filter(Account.company_id == company_id)
     )
     if date_from is not None:
         rows = rows.filter(JournalEntry.date >= date_from)
@@ -145,6 +148,7 @@ def exportar_pyg(
     format: str = Query(default="csv", alias="format"),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ):
-    data = _compute_pyg(db, date_from, date_to)
+    data = _compute_pyg(db, date_from, date_to, company_id)
     return _respond(data, format, "pyg")

@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Invoice, ReceivedInvoice, User
 
@@ -22,9 +23,9 @@ def _sanitize_cell(val):
     return s
 
 
-def _compute_iva(db: Session, date_from: date | None, date_to: date | None):
-    q_emitidas = db.query(Invoice)
-    q_recibidas = db.query(ReceivedInvoice)
+def _compute_iva(db: Session, date_from: date | None, date_to: date | None, company_id: int | None = None):
+    q_emitidas = db.query(Invoice).filter(Invoice.company_id == company_id)
+    q_recibidas = db.query(ReceivedInvoice).filter(ReceivedInvoice.company_id == company_id)
     if date_from is not None:
         q_emitidas = q_emitidas.filter(Invoice.date >= date_from)
         q_recibidas = q_recibidas.filter(ReceivedInvoice.date >= date_from)
@@ -165,6 +166,7 @@ def exportar_iva(
     format: str = Query(default="csv", alias="format"),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ):
-    data = _compute_iva(db, date_from, date_to)
+    data = _compute_iva(db, date_from, date_to, company_id)
     return _respond(data, format, "iva")

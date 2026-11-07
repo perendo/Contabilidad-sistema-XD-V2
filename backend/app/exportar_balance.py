@@ -13,6 +13,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from sqlalchemy import func
 
@@ -21,7 +22,7 @@ from .models import Account, JournalEntry, JournalLine, User
 router = APIRouter(tags=["exportar-balance"])
 
 
-def _compute_balance(db: Session, date_from: date | None, date_to: date | None):
+def _compute_balance(db: Session, date_from: date | None, date_to: date | None, company_id: int | None = None):
     stmt = (
         db.query(
             Account.code,
@@ -32,6 +33,8 @@ def _compute_balance(db: Session, date_from: date | None, date_to: date | None):
         .join(JournalLine, Account.id == JournalLine.account_id)
         .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
         .filter(JournalEntry.status == "accepted")
+        .filter(JournalEntry.company_id == company_id)
+        .filter(Account.company_id == company_id)
     )
     if date_from is not None:
         stmt = stmt.filter(JournalEntry.date >= date_from)
@@ -136,8 +139,9 @@ def exportar_balance(
     format: str = Query(default="csv", alias="format"),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ):
-    rows, total_debe, total_haber = _compute_balance(db, date_from, date_to)
+    rows, total_debe, total_haber = _compute_balance(db, date_from, date_to, company_id)
 
     if format == "csv":
         content = _csv_export(rows, total_debe, total_haber, date_from, date_to)

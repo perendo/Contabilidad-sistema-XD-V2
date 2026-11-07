@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Invoice, ReceivedInvoice, User
 
@@ -39,9 +40,10 @@ def iva_liquidation(
     date_to: date | None = Query(default=None),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> IVALiquidationOut:
-    q_emitidas = db.query(Invoice)
-    q_recibidas = db.query(ReceivedInvoice)
+    q_emitidas = db.query(Invoice).filter(Invoice.company_id == company_id)
+    q_recibidas = db.query(ReceivedInvoice).filter(ReceivedInvoice.company_id == company_id)
     if date_from is not None:
         q_emitidas = q_emitidas.filter(Invoice.date >= date_from)
         q_recibidas = q_recibidas.filter(ReceivedInvoice.date >= date_from)

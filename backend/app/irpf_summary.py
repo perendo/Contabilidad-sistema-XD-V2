@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Invoice, ReceivedInvoice, User
 
@@ -44,6 +45,7 @@ def irpf_summary(
     quarter: int = Query(ge=1, le=4),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> IRPFSummaryOut:
     start_month, end_month = QUARTER_MONTHS[quarter]
     date_from = date(year, start_month, 1)
@@ -56,11 +58,13 @@ def irpf_summary(
         date_to = date(year, end_month, 31)
 
     q_emitidas = db.query(Invoice).filter(
+        Invoice.company_id == company_id,
         or_(Invoice.irpf_rate.isnot(None), Invoice.irpf_amount > 0),
         Invoice.date >= date_from,
         Invoice.date <= date_to,
     )
     q_recibidas = db.query(ReceivedInvoice).filter(
+        ReceivedInvoice.company_id == company_id,
         or_(ReceivedInvoice.irpf_rate.isnot(None), ReceivedInvoice.irpf_amount > 0),
         ReceivedInvoice.date >= date_from,
         ReceivedInvoice.date <= date_to,

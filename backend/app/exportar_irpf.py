@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .irpf_summary import QUARTER_MONTHS
 from .models import Invoice, ReceivedInvoice, User
@@ -22,7 +23,7 @@ def _sanitize_cell(val):
     return s
 
 
-def _compute_irpf(db: Session, year: int, quarter: int):
+def _compute_irpf(db: Session, year: int, quarter: int, company_id: int | None = None):
     start_month, end_month = QUARTER_MONTHS[quarter]
     date_from = date(year, start_month, 1)
     import calendar
@@ -34,11 +35,13 @@ def _compute_irpf(db: Session, year: int, quarter: int):
         date_to = date(year, end_month, 31)
 
     emitidas = db.query(Invoice).filter(
+        Invoice.company_id == company_id,
         or_(Invoice.irpf_rate.isnot(None), Invoice.irpf_amount > 0),
         Invoice.date >= date_from,
         Invoice.date <= date_to,
     ).all()
     recibidas = db.query(ReceivedInvoice).filter(
+        ReceivedInvoice.company_id == company_id,
         or_(ReceivedInvoice.irpf_rate.isnot(None), ReceivedInvoice.irpf_amount > 0),
         ReceivedInvoice.date >= date_from,
         ReceivedInvoice.date <= date_to,
@@ -150,6 +153,7 @@ def exportar_irpf(
     format: str = Query(default="csv", alias="format"),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ):
-    data = _compute_irpf(db, year, quarter)
+    data = _compute_irpf(db, year, quarter, company_id)
     return _respond(data, format, "irpf")

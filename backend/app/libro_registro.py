@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
+from .company_context import active_company_id_dep
 from .database import get_db
 from .models import Invoice, ReceivedInvoice, ThirdParty, User
 
@@ -40,11 +41,19 @@ def libro_registro(
     year: int = Query(...),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
 ) -> LibroRegistroOut:
-    emitidas = db.query(Invoice).filter(Invoice.year == year).all()
+    emitidas = db.query(Invoice).filter(
+        Invoice.company_id == company_id,
+        Invoice.year == year,
+    ).all()
     recibidas = (
         db.query(ReceivedInvoice)
-        .filter(ReceivedInvoice.date >= date(year, 1, 1), ReceivedInvoice.date <= date(year, 12, 31))
+        .filter(
+            ReceivedInvoice.company_id == company_id,
+            ReceivedInvoice.date >= date(year, 1, 1),
+            ReceivedInvoice.date <= date(year, 12, 31),
+        )
         .all()
     )
 
