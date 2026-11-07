@@ -38,6 +38,11 @@ def create_user(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ) -> User:
+    if body.password is None or len(body.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña debe tener al menos 8 caracteres",
+        )
     user = User(
         email=body.email,
         password_hash=bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode(),

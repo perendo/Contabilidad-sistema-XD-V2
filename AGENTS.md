@@ -56,7 +56,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 
 45. [x] Como administrador, quiero que el sistema valide mi membresía a una empresa para que no pueda acceder a datos de otras empresas.
 46. [x] Como administrador, quiero gestionar usuarios y asignar roles y sociedades para controlar quién puede acceder a cada empresa.
-47. [ ] Como administrador, quiero que el sistema valide contraseñas y proteja contra ataques de fuerza bruta y temporización para evitar el acceso no autorizado.
+47. [x] Como administrador, quiero que el sistema valide contraseñas y proteja contra ataques de fuerza bruta y temporización para evitar el acceso no autorizado.
 48. [ ] Como administrador, quiero que los archivos subidos (PDF, imagen, XML) se procesen de forma segura para evitar ataques de inyección o descompresión.
 49. [ ] Como administrador, quiero que el procesamiento de facturas escaneadas se realice de forma asíncrona para no bloquear el servidor.
 50. [ ] Como administrador, quiero que la numeración de facturas sea correlativa y aislada por empresa para cumplir con la normativa tributaria.

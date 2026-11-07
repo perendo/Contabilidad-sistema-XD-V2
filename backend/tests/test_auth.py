@@ -16,7 +16,7 @@ def test_login_seed_valid_credentials_returns_token(client):
 def test_login_invalid_credentials_returns_401(client):
     response = client.post(
         "/auth/login",
-        json={"email": TEST_EMAIL, "password": "wrong"},
+        json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
     )
     assert response.status_code == 401
 
@@ -76,3 +76,51 @@ def test_logout_clears_cookie_session(client):
     assert logout.status_code == 204
     assert client.get("/auth/me").status_code == 401
 
+
+def test_rate_limit_after_failed_login_attempts(client):
+    """Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces,
+    entonces el sistema bloquea temporalmente el acceso tras varios intentos fallidos."""
+    headers = {"Authorization": f"Bearer {TEST_EMAIL}"}
+
+    # Intentar login con contraseña incorrecta 5 veces
+    for _ in range(5):
+        response = client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+        )
+        assert response.status_code == 401
+
+    # El siguiente intento debería ser rechazado con 429 (Too Many Requests)
+    response = client.post(
+        "/auth/login",
+        json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+    )
+    assert response.status_code == 429
+
+def test_constant_time_authentication_unknown_user(client):
+    """Dado un usuario que intenta iniciar sesión con un email inexistente,
+    entonces el tiempo de respuesta es indistinguible del caso con email válido
+    (evita enumeración de usuarios)."""
+    import time
+
+    # Medir tiempo para email inexistente (10 intentos)
+    start = time.time()
+    for _ in range(10):
+        client.post(
+            "/auth/login",
+            json={"email": "nonexistent@example.com", "password": "wrongpassword12345"},
+        )
+    time_unknown = time.time() - start
+
+    # Medir tiempo para email existente con contraseña incorrecta (10 intentos)
+    start = time.time()
+    for _ in range(10):
+        client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": "wrongpassword12345"},
+        )
+    time_known = time.time() - start
+
+    # El tiempo debería ser similar (dentro de un factor de 2)
+    assert time_unknown < time_known * 2
+    assert time_known < time_unknown * 2

@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.models import Company, CompanyMembership, User
+from app.auth import failed_login_attempts
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "testpass123"
@@ -67,3 +68,8 @@ def client():
     client.cookies.set("active_company_id", "1")
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    failed_login_attempts.clear()
