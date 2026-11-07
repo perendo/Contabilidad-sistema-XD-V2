@@ -1789,3 +1789,68 @@ def test_unapproved_invoice_has_empty_approval_fields(client):
     factura = [i for i in invoices if i["supplier_number"] == "F-NOAP-001"][0]
     assert factura["approved_by"] is None
     assert factura["approved_at"] is None
+def test_pending_invoice_persists_after_logout_and_login(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral bajo (100.00)
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "100.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    # crear cuenta de gasto e IVA
+    client.post(
+        "/accounts",
+        json={"code": "6040", "name": "Gasto test persistencia", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4734", "name": "IVA soportado test persistencia", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Persistencia SL\n"
+        "NIF: B77777777\n"
+        "Factura: F-PERSIST-001\n"
+        "Fecha: 2026-02-01\n"
+        "Base imponible: 10000.00\n"
+        "IVA 21%: 2100.00\n"
+        "Total: 12100.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 1
+    pending_id = pending[0]["id"]
+    assert pending[0]["supplier_number"] == "F-PERSIST-001"
+
+    # cerrar sesión y volver a iniciar
+    logout = client.post("/auth/logout", headers=headers)
+    assert logout.status_code == 204
+
+    login2 = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers2 = {"Authorization": f"Bearer {login2.json()['access_token']}"}
+
+    # la factura pendiente sigue visible en la bandeja
+    pending_again = client.get("/received-invoices/pending", headers=headers2).json()
+    assert len(pending_again) == 1
+    assert pending_again[0]["id"] == pending_id
+    assert pending_again[0]["supplier_number"] == "F-PERSIST-001"
+
+    # el documento original sigue accesible
+    doc = client.get(f"/received-invoices/pending/{pending_id}/document", headers=headers2)
+    assert doc.status_code == 200
+    assert doc.content == pdf_bytes
