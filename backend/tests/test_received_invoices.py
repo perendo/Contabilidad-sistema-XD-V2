@@ -1854,3 +1854,131 @@ def test_pending_invoice_persists_after_logout_and_login(client):
     doc = client.get(f"/received-invoices/pending/{pending_id}/document", headers=headers2)
     assert doc.status_code == 200
     assert doc.content == pdf_bytes
+
+def test_reject_pending_invoice_stores_reason_and_excludes_from_list(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral bajo (100.00)
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "100.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    # crear cuenta de gasto e IVA
+    client.post(
+        "/accounts",
+        json={"code": "6041", "name": "Gasto test rechazo", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4735", "name": "IVA soportado test rechazo", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Rechazo SL\n"
+        "NIF: B88888888\n"
+        "Factura: F-REJ-002\n"
+        "Fecha: 2026-02-01\n"
+        "Base imponible: 10000.00\n"
+        "IVA 21%: 2100.00\n"
+        "Total: 12100.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 1
+    pending_id = pending[0]["id"]
+    assert pending[0]["supplier_number"] == "F-REJ-002"
+
+    # rechazar con motivo
+    response = client.post(
+        f"/received-invoices/pending/{pending_id}/reject",
+        data={"motivo": "Factura duplicada, no se aprueba"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    # la factura rechazada no aparece en la bandeja de pendientes
+    pending_after = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending_after) == 0
+
+    # no se creó asiento contable ni factura recibida
+    assert client.get("/journal-entries", headers=headers).json() == []
+    assert client.get("/received-invoices", headers=headers).json() == []
+
+def test_get_pending_detail_shows_rejection_reason(client):
+    login = client.post("/auth/login", json={"email": "test@example.com", "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # configurar sociedad con umbral bajo (100.00)
+    company_payload = {
+        "name": "Empresa SL",
+        "tax_id": "B12345678",
+        "address": "Calle Principal 1",
+        "fiscal_year": "2026",
+        "approval_threshold": "100.00",
+    }
+    client.put("/company", json=company_payload, headers=headers)
+
+    # crear cuenta de gasto e IVA
+    client.post(
+        "/accounts",
+        json={"code": "6042", "name": "Gasto test detalle", "type": "Gasto", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+    client.post(
+        "/accounts",
+        json={"code": "4736", "name": "IVA soportado test detalle", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    )
+
+    pdf_text = (
+        "Proveedor: Proveedor Detalle SL\n"
+        "NIF: B99999999\n"
+        "Factura: F-DET-001\n"
+        "Fecha: 2026-02-01\n"
+        "Base imponible: 10000.00\n"
+        "IVA 21%: 2100.00\n"
+        "Total: 12100.00\n"
+    )
+    pdf_bytes = _make_pdf(pdf_text)
+
+    client.post(
+        "/received-invoices/extract",
+        files={"file": ("factura.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+
+    pending = client.get("/received-invoices/pending", headers=headers).json()
+    assert len(pending) == 1
+    pending_id = pending[0]["id"]
+
+    # rechazar con motivo
+    response = client.post(
+        f"/received-invoices/pending/{pending_id}/reject",
+        data={"motivo": "Factura duplicada, no se aprueba"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    # consultar el detalle de la factura rechazada y verificar el motivo
+    detail = client.get(f"/received-invoices/pending/{pending_id}", headers=headers)
+    assert detail.status_code == 200
+    data = detail.json()
+    assert data["id"] == pending_id
+    assert data["supplier_number"] == "F-DET-001"
+    assert data["status"] == "rechazado"
+    assert data["reason"] == "Factura duplicada, no se aprueba"

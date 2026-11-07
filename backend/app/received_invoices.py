@@ -581,6 +581,21 @@ def list_pending_invoices(
     return q.order_by(ReceivedInvoicePending.created_at.desc()).all()
 
 
+@router.get("/received-invoices/pending/{pending_id}", response_model=ReceivedInvoicePendingOut)
+def get_pending_invoice(
+    pending_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> ReceivedInvoicePending:
+    pending = db.query(ReceivedInvoicePending).filter(ReceivedInvoicePending.id == pending_id).first()
+    if pending is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+    if company_id is not None and pending.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura pendiente no encontrada")
+    return pending
+
+
 @router.get("/received-invoices/pending/{pending_id}/document")
 def get_pending_document(
     pending_id: int,
