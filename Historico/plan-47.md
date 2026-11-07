@@ -1,19 +1,16 @@
 ## Story
-Como administrador, quiero que los archivos subidos (PDF, imagen, XML) se procesen de forma segura para evitar ataques de inyección o descompresión.
+Como administrador, quiero que el sistema valide contraseñas y proteja contra ataques de fuerza bruta y temporización para evitar el acceso no autorizado.
 
 ## Acceptance criteria
-- [ ] Dado un archivo PDF con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin procesar el archivo.
-- [ ] Dada una imagen con bomba de descompresión (bombas de píxeles), cuando se sube, entonces el sistema devuelve 400 sin procesar la imagen.
-- [ ] Dado un archivo XML FacturaE con entidades externas (XXE), cuando se sube, entonces el sistema devuelve 400 sin procesar entidades externas.
+- [ ] Dada una contraseña de menos de 8 caracteres, cuando se intenta usar, entonces el sistema la rechaza.
+- [ ] Dados varios intentos fallidos de inicio de sesión, cuando se supera el límite configurado, entonces el sistema responde `429`.
+- [ ] Dado un email que no existe, cuando se intenta iniciar sesión, entonces el sistema tarda un tiempo similar al de un email válido (no revela si existe la cuenta).
 
 ## Plan
-- Agregar límite de dimensiones (píxeles) en imágenes antes de procesar con PIL para evitar decompression bombs.
-- Reemplazar `xml.etree.ElementTree.fromstring` por `defusedxml.parse` para parsear FacturaE de forma segura.
-- Agregar límite de tamaño de archivo PDF antes de procesar con pdfminer para evitar decompression bombs.
+- Validar la longitud mínima de la contraseña en el alta de usuarios.
+- Limitar los intentos fallidos de login y devolver `429` al superar el umbral.
+- Ejecutar siempre una comprobación bcrypt (con un hash ficticio cuando el usuario no existe) para evitar ataques de temporización.
 
 ## Out of scope
-- Sincronización de perfiles de importación bancaria entre sociedades (historia #25 ya cubre perfiles).
-- Cotejo a tres vías con órdenes de compra y albaranes (fuera de alcance del epic).
-
-## Suggestions (your call)
-- Reutilizar `pydantic-settings` para configurar los límites de tamaño de imagen y PDF como variables de entorno (`MAX_IMAGE_PIXELS`, `MAX_PDF_PAGES`), ya que ya está disponible como dependencia.
+- Bloqueo permanente de cuentas, CAPTCHA y autenticación multifactor.
+- Políticas de complejidad de contraseña más allá de la longitud mínima.

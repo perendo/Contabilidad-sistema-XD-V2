@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -229,6 +229,31 @@ class ReceivedInvoicePending(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.now)
 
     company: Mapped["Company | None"] = relationship("Company")
+
+
+class ReceivedInvoiceJob(Base):
+    __tablename__ = "received_invoice_jobs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id"), nullable=True, index=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    expense_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="procesando")
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(
+        String(255), default="application/octet-stream"
+    )
+    file_path: Mapped[str] = mapped_column(String(500))
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
+
+    company: Mapped["Company | None"] = relationship("Company")
+    user: Mapped["User"] = relationship("User")
 
 
 class CompanyMembership(Base):

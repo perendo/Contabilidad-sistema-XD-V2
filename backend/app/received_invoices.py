@@ -9,11 +9,11 @@ import defusedxml.ElementTree as ET
 from datetime import datetime as DateTime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from .auth import get_current_user
 from .company_context import active_company_id_dep
@@ -27,6 +27,7 @@ from .models import (
     Document,
     JournalEntry,
     ReceivedInvoice,
+    ReceivedInvoiceJob,
     ReceivedInvoicePending,
     ThirdParty,
     User,
@@ -99,22 +100,6 @@ class ReceivedInvoiceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ExtractedDataOut(BaseModel):
-    nif: str | None = None
-    name: str | None = None
-    number: str
-    date: DateType
-    base: float
-    vat_rate: float
-    vat_amount: float | None = None
-    total: float | None = None
-    temp_file_id: str
-    warnings: list[str] = []
-    auto_registered: bool = False
-    invoice_id: int | None = None
-    entry_id: int | None = None
-
-
 class ReceivedInvoicePendingOut(BaseModel):
     id: int
     supplier_number: str
@@ -130,14 +115,24 @@ class ReceivedInvoicePendingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-@router.post("/received-invoices/extract", status_code=status.HTTP_200_OK)
+class ExtractJobCreatedOut(BaseModel):
+    job_id: str
+    status: str = "procesando"
+
+
+@router.post(
+    "/received-invoices/extract",
+    response_model=ExtractJobCreatedOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def extract_received_invoice(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     expense_account_id: int | None = Form(default=None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
-) -> ExtractedDataOut:
+) -> ExtractJobCreatedOut:
     content = file.file.read()
     filename = file.filename or "factura"
     media_type = (file.content_type or "").lower()
@@ -151,6 +146,105 @@ def extract_received_invoice(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Solo se admiten archivos PDF o imagen en la extraccion",
         )
+
+    job_id = uuid4().hex
+    suffix = Path(filename).suffix.lower()
+    relative_path = f"temp/jobs/{job_id}{suffix}"
+    write_document(relative_path, content)
+
+    job = ReceivedInvoiceJob(
+        id=job_id,
+        company_id=company_id,
+        user_id=user.id,
+        expense_account_id=expense_account_id,
+        status="procesando",
+        filename=filename,
+        content_type=media_type,
+        file_path=relative_path,
+    )
+    db.add(job)
+    db.commit()
+
+    background_tasks.add_task(_process_extract_job, job_id, db.get_bind())
+    return ExtractJobCreatedOut(job_id=job_id, status="procesando")
+
+
+@router.get("/received-invoices/jobs/{job_id}")
+def get_extract_job(
+    job_id: str,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: int | None = Depends(active_company_id_dep),
+) -> dict:
+    job = (
+        db.query(ReceivedInvoiceJob)
+        .filter(ReceivedInvoiceJob.id == job_id)
+        .first()
+    )
+    if job is None or (company_id is not None and job.company_id != company_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trabajo de extracción no encontrado",
+        )
+    payload = {"job_id": job.id, "status": job.status, "error": job.error}
+    if job.result:
+        payload.update(job.result)
+    return payload
+
+
+def _process_extract_job(job_id: str, bind) -> None:
+    db = sessionmaker(bind=bind)()
+    try:
+        job = (
+            db.query(ReceivedInvoiceJob)
+            .filter(ReceivedInvoiceJob.id == job_id)
+            .first()
+        )
+        if job is None:
+            return
+        path = resolve_path(job.file_path)
+        try:
+            content = path.read_bytes()
+            user = db.query(User).filter(User.id == job.user_id).first()
+            result = _extract_and_register(
+                content,
+                job.filename,
+                job.content_type,
+                job.expense_account_id,
+                job.company_id,
+                user,
+                db,
+            )
+        except HTTPException as exc:
+            db.rollback()
+            job.status = "fallido"
+            job.error = str(exc.detail)
+        except Exception as exc:
+            db.rollback()
+            job.status = "fallido"
+            job.error = str(exc)
+        else:
+            job.status = "completado"
+            job.result = result
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        db.commit()
+    finally:
+        db.close()
+
+
+def _extract_and_register(
+    content: bytes,
+    filename: str,
+    media_type: str,
+    expense_account_id: int | None,
+    company_id: int | None,
+    user: User,
+    db: Session,
+) -> dict:
+    is_pdf = filename.lower().endswith(".pdf") or media_type == "application/pdf"
     if is_pdf:
         text = _extract_pdf_text(content)
     else:
@@ -306,21 +400,21 @@ def extract_received_invoice(
         json.dumps(meta), encoding="utf-8"
     )
 
-    return ExtractedDataOut(
-        nif=data["nif"],
-        name=data["name"],
-        number=data["number"],
-        date=data["date"],
-        base=float(data["base"]),
-        vat_rate=float(data["vat_rate"]),
-        vat_amount=float(vat_amount) if vat_amount is not None else None,
-        total=float(data["total"]) if data.get("total") is not None else None,
-        temp_file_id=temp_file_id,
-        warnings=warnings,
-        auto_registered=auto_registered,
-        invoice_id=invoice_id,
-        entry_id=entry_id,
-    )
+    return {
+        "nif": data["nif"],
+        "name": data["name"],
+        "number": data["number"],
+        "date": data["date"].isoformat(),
+        "base": float(data["base"]),
+        "vat_rate": float(data["vat_rate"]),
+        "vat_amount": float(vat_amount) if vat_amount is not None else None,
+        "total": float(data["total"]) if data.get("total") is not None else None,
+        "temp_file_id": temp_file_id,
+        "warnings": warnings,
+        "auto_registered": auto_registered,
+        "invoice_id": invoice_id,
+        "entry_id": entry_id,
+    }
 
 
 def attach_document_to_entry(db: Session, entry: JournalEntry, filename: str, content_type: str, content: bytes) -> None:
