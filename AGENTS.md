@@ -66,7 +66,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 54. [x] Como administrador, quiero que los importes contables se manejen con precisión decimal para evitar errores en informes fiscales.
 55. [x] Como desarrollador frontend, quiero que los errores de la API se muestren de forma legible y sin cerrar la sesión por error, para que el usuario pueda corregir y reintentar sin perder el trabajo.
 56. [x] Como desarrollador frontend, quiero que CORS permita el encabezado X-Company-Id para evitar errores en llamadas entre dominios.
-57. [ ] Como administrador, quiero que el sistema mantenga un registro inalterable de auditoría para cumplir con la Ley Antifraude y Veri*factu. Requiere: #45.
+57. [x] Como administrador, quiero que el sistema mantenga un registro inalterable de auditoría para cumplir con la Ley Antifraude y Veri*factu. Requiere: #45.
 58. [ ] Como administrador, quiero que el informe de Pérdidas y Ganancias siga la estructura del PGC español para cumplir con la normativa contable.
 59. [ ] Como administrador, quiero que el extracto de cuenta muestre el saldo inicial correcto para tener una visión real de mis finanzas.
 60. [ ] Como administrador, quiero que el Modelo 347 tenga desglose trimestral y excluya facturas con retención de IRPF para cumplir con la AEAT. Requiere: #45.

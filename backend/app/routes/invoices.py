@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..company_context import active_company_id_dep
 from ..database import get_db
-from ..models import Invoice, User
+from ..models import AuditLog, Invoice, User
 from ..repositories.accounts import AccountRepository
 from ..repositories.invoices import InvoiceRepository
 from ..repositories.journal_entries import JournalEntryRepository
@@ -42,7 +42,7 @@ def create_invoice(
     service: InvoiceService = Depends(get_invoice_service),
 ) -> Invoice:
     try:
-        return service.create_invoice(body, company_id, user.id)
+        invoice = service.create_invoice(body, company_id, user.id)
     except ValueError as exc:
         detail = str(exc)
         code = (
@@ -51,6 +51,24 @@ def create_invoice(
             else status.HTTP_400_BAD_REQUEST
         )
         raise HTTPException(status_code=code, detail=detail)
+    db.add(
+        AuditLog(
+            company_id=company_id,
+            user_id=user.id,
+            user_email=user.email,
+            action="invoice.create",
+            target_type="invoice",
+            target_id=invoice.id,
+            detail={
+                "number": invoice.number,
+                "year": invoice.year,
+                "description": invoice.description,
+                "total": str(invoice.total),
+            },
+        )
+    )
+    db.commit()
+    return invoice
 
 
 @router.get("/invoices", response_model=list[InvoiceOut])
@@ -75,9 +93,22 @@ def pay_issued_invoice(
     service: InvoiceService = Depends(get_invoice_service),
 ) -> Invoice:
     try:
-        return service.pay_issued_invoice(invoice_id, body, company_id, user.id)
+        invoice = service.pay_issued_invoice(invoice_id, body, company_id, user.id)
     except ValueError as exc:
         detail = str(exc)
         if detail == "Factura no existe":
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    db.add(
+        AuditLog(
+            company_id=company_id,
+            user_id=user.id,
+            user_email=user.email,
+            action="invoice.pay",
+            target_type="invoice",
+            target_id=invoice_id,
+            detail={"status": body.status, "total": str(invoice.total)},
+        )
+    )
+    db.commit()
+    return invoice

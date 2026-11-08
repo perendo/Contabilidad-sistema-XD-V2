@@ -24,6 +24,7 @@ from .routes.invoices import router as invoices_router
 from .routes.iva_liquidation import router as iva_liquidation_router
 from .routes.irpf_summary import router as irpf_summary_router
 from .routes.journal_entries import router as journal_entries_router
+from .routes.audit import router as audit_router
 from .routes.libro_registro import router as libro_registro_router
 from .routes.modelo_347 import router as modelo_347_router
 from .routes.third_parties import router as third_parties_router
@@ -50,6 +51,7 @@ app.include_router(accounts_router)
 app.include_router(cuenta_perdidas_ganancias_router)
 app.include_router(extracto_cuenta_router)
 app.include_router(journal_entries_router)
+app.include_router(audit_router)
 app.include_router(third_parties_router)
 app.include_router(invoices_router)
 app.include_router(iva_liquidation_router)

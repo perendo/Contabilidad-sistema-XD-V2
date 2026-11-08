@@ -269,3 +269,22 @@ class CompanyMembership(Base):
 
     user: Mapped["User"] = relationship("User")
     company: Mapped["Company"] = relationship("Company")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id"), nullable=True, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    user_email: Mapped[str] = mapped_column(String(255))
+    action: Mapped[str] = mapped_column(String(100))
+    target_type: Mapped[str] = mapped_column(String(100))
+    target_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
+

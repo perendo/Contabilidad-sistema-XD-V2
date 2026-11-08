@@ -23,6 +23,7 @@ from .document_storage import build_file_path, documents_root, read_document, re
 from .journal_entries import JournalLineIn, add_accepted_entry
 from .models import (
     Account,
+    AuditLog,
     Company,
     Document,
     JournalEntry,
@@ -884,6 +885,17 @@ def pay_received_invoice(
 
     invoice.status = "pagada"
     db.add(invoice)
+    db.add(
+        AuditLog(
+            company_id=company_id,
+            user_id=user.id,
+            user_email=user.email,
+            action="received_invoice.pay",
+            target_type="received_invoice",
+            target_id=invoice_id,
+            detail={"status": "pagada", "total": str(invoice.total)},
+        )
+    )
     db.commit()
     db.refresh(invoice)
     return invoice

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..company_context import active_company_id_dep
 from ..database import get_db
-from ..models import JournalEntry, User
+from ..models import AuditLog, JournalEntry, User
 from ..repositories.journal_entries import JournalEntryRepository
 from ..schemas.journal_entries import JournalEntryIn, JournalEntryOut
 from ..services.journal_entries import JournalEntryService
@@ -35,11 +35,25 @@ def create_entry(
     user: User = Depends(get_current_user),
     company_id: int | None = Depends(active_company_id_dep),
     service: JournalEntryService = Depends(get_journal_entry_service),
+    db: Session = Depends(get_db),
 ) -> JournalEntry:
     try:
-        return service.create_entry(body, company_id, user.id)
+        entry = service.create_entry(body, company_id, user.id)
     except ValueError as exc:
         raise _http_error(exc)
+    db.add(
+        AuditLog(
+            company_id=company_id,
+            user_id=user.id,
+            user_email=user.email,
+            action="journal_entry.create",
+            target_type="journal_entry",
+            target_id=entry.id,
+            detail={"description": body.description, "date": str(body.date)},
+        )
+    )
+    db.commit()
+    return entry
 
 
 @router.get("/journal-entries", response_model=list[JournalEntryOut])
