@@ -5,17 +5,16 @@ import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
 import ErrorAlert from "@/components/ErrorAlert";
+import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, formatEuro, parseAmount } from "@/lib/format";
 import {
-  AppBar,
-  Toolbar,
-  Typography,
   Button,
   Container,
   Paper,
   Box,
   TextField,
+  Typography,
   Table,
   TableHead,
   TableRow,
@@ -154,25 +153,18 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Facturas emitidas
-          </Typography>
-          <Button color="inherit" onClick={toggle}>
-            {mode === "dark" ? "Claro" : "Oscuro"}
-          </Button>
-          <Button color="inherit" href="/">
-            Panel
-          </Button>
+      <AppHeader
+        title="Facturas emitidas"
+        mode={mode}
+        toggle={toggle}
+        onNavigateToPanel={() => router.push("/")}
+        onLogout={logout}
+        extra={
           <Button color="inherit" href="/journal">
             Libro diario
           </Button>
-          <Button color="inherit" onClick={logout}>
-            Salir
-          </Button>
-        </Toolbar>
-      </AppBar>
+        }
+      />
       <Container sx={{ mt: 4 }} maxWidth="lg">
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h6" gutterBottom>

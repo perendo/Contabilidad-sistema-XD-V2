@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
 import ErrorAlert from "@/components/ErrorAlert";
+import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
-  AppBar,
-  Toolbar,
-  Typography,
   Button,
   Container,
   Paper,
@@ -18,6 +17,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Typography,
 } from "@mui/material";
 
 type User = { id: number; email: string };
@@ -26,6 +26,7 @@ const PAGE_SIZE = 50;
 
 export default function UsersPage() {
   const router = useRouter();
+  const { mode, toggle } = useThemeMode();
   const [users, setUsers] = useState<User[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -88,16 +89,16 @@ export default function UsersPage() {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Usuarios
-          </Typography>
-          <Button color="inherit" onClick={() => { clearSession(); router.push("/login"); }}>
-            Salir
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <AppHeader
+        title="Usuarios"
+        mode={mode}
+        toggle={toggle}
+        onNavigateToPanel={() => router.push("/")}
+        onLogout={() => {
+          clearSession();
+          router.push("/login");
+        }}
+      />
       <Container sx={{ mt: 4 }}>
         {loading ? (
           <CircularProgress />

@@ -4,17 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import ErrorAlert from "@/components/ErrorAlert";
+import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
-  AppBar,
-  Toolbar,
-  Typography,
   Button,
   Container,
   Paper,
   Box,
   TextField,
   CircularProgress,
+  Typography,
 } from "@mui/material";
 
 type PygResult = {
@@ -61,14 +60,13 @@ export default function PygPage() {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>Cuenta de pérdidas y ganancias</Typography>
-          <Button color="inherit" onClick={toggle}>{mode === "dark" ? "Claro" : "Oscuro"}</Button>
-          <Button color="inherit" href="/">Panel</Button>
-          <Button color="inherit" onClick={logout}>Salir</Button>
-        </Toolbar>
-      </AppBar>
+      <AppHeader
+        title="Cuenta de pérdidas y ganancias"
+        mode={mode}
+        toggle={toggle}
+        onNavigateToPanel={() => router.push("/")}
+        onLogout={logout}
+      />
       <Container sx={{ mt: 4 }} maxWidth="sm">
         <Paper sx={{ p: 2, mb: 3 }}>
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>

@@ -4,11 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import ErrorAlert from "@/components/ErrorAlert";
+import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage, fetchApi, ApiError } from "@/lib/api";
 import {
-  AppBar,
-  Toolbar,
-  Typography,
   Button,
   Container,
   Paper,
@@ -19,6 +17,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Typography,
 } from "@mui/material";
 
 type Account = {
@@ -150,22 +149,13 @@ export default function BankImportsPage() {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Importar movimientos bancarios
-          </Typography>
-          <Button color="inherit" onClick={toggle}>
-            {mode === "dark" ? "Claro" : "Oscuro"}
-          </Button>
-          <Button color="inherit" href="/">
-            Panel
-          </Button>
-          <Button color="inherit" onClick={logout}>
-            Salir
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <AppHeader
+        title="Importar movimientos bancarios"
+        mode={mode}
+        toggle={toggle}
+        onNavigateToPanel={() => router.push("/")}
+        onLogout={logout}
+      />
       <Container sx={{ mt: 4 }} maxWidth="sm">
         <Paper sx={{ p: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>

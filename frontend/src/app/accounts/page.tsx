@@ -5,16 +5,15 @@ import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
 import ErrorAlert from "@/components/ErrorAlert";
+import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
-  AppBar,
-  Toolbar,
-  Typography,
   Button,
   Container,
   Paper,
   Box,
   TextField,
+  Typography,
   Table,
   TableHead,
   TableRow,
@@ -122,22 +121,13 @@ export default function AccountsPage() {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Plan de cuentas
-          </Typography>
-          <Button color="inherit" onClick={toggle}>
-            {mode === "dark" ? "Claro" : "Oscuro"}
-          </Button>
-          <Button color="inherit" href="/">
-            Panel
-          </Button>
-          <Button color="inherit" onClick={logout}>
-            Salir
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <AppHeader
+        title="Plan de cuentas"
+        mode={mode}
+        toggle={toggle}
+        onNavigateToPanel={() => router.push("/")}
+        onLogout={logout}
+      />
       <Container sx={{ mt: 4 }} maxWidth="lg">
         <Paper sx={{ p: 2, mb: 3 }}>
           <Box component="form" onSubmit={handleSearch} sx={{ display: "flex", gap: 2 }}>
