@@ -77,8 +77,8 @@ def test_invoice_with_irpf_stores_percentage_and_amount(client):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["irpf_rate"] == 15
-    assert data["irpf_amount"] == 15
+    assert data["irpf_rate"] == "15.00"
+    assert data["irpf_amount"] == "15.00"
 
 
 def test_received_invoice_with_irpf_stores_percentage_and_amount(client):
@@ -103,8 +103,8 @@ def test_received_invoice_with_irpf_stores_percentage_and_amount(client):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["irpf_rate"] == 15
-    assert data["irpf_amount"] == 30
+    assert data["irpf_rate"] == "15.00"
+    assert data["irpf_amount"] == "30.00"
 
 
 def test_irpf_quarterly_summary_returns_totals(client):
@@ -150,12 +150,59 @@ def test_irpf_quarterly_summary_returns_totals(client):
     data = response.json()
     assert data["year"] == 2026
     assert data["quarter"] == 1
-    assert data["modelo_111"]["base"] == 200.0
-    assert data["modelo_111"]["retenciones_a_ingresar"] == 30.0
-    assert data["pagos_a_cuenta_130"]["base"] == 100.0
-    assert data["pagos_a_cuenta_130"]["retenciones_soportadas"] == 15.0
+    assert data["modelo_111"]["base"] == "200.00"
+    assert data["modelo_111"]["retenciones_a_ingresar"] == "30.00"
+    assert data["pagos_a_cuenta_130"]["base"] == "100.00"
+    assert data["pagos_a_cuenta_130"]["retenciones_soportadas"] == "15.00"
     assert data["facturas_emitidas_count"] == 1
     assert data["facturas_recibidas_count"] == 1
+
+
+def test_irpf_summary_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente, proveedor = _setup_irpf(client, headers)
+
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-02-10",
+            "client_id": cliente["id"],
+            "description": "Servicio con decimales",
+            "base_amount": 100.5,
+            "vat_rate": 21,
+            "irpf_rate": 15,
+            "irpf_amount": 15.08,
+        },
+        headers=headers,
+    )
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-03-15",
+            "supplier_id": proveedor["id"],
+            "supplier_number": "F-2026-0101",
+            "description": "Alquiler con decimales",
+            "base_amount": 200.25,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+            "irpf_rate": 15,
+            "irpf_amount": 30.04,
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/irpf-summary",
+        params={"year": 2026, "quarter": 1},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["modelo_111"]["base"] == "200.25"
+    assert data["modelo_111"]["retenciones_a_ingresar"] == "30.04"
+    assert data["pagos_a_cuenta_130"]["base"] == "100.50"
+    assert data["pagos_a_cuenta_130"]["retenciones_soportadas"] == "15.08"
 
 
 def test_irpf_quarterly_summary_idempotent(client):
@@ -272,8 +319,8 @@ def test_irpf_summary_and_export_use_constant_queries(client, count_queries):
         assert all("sum(" in statement and "count(" in statement for statement in invoice_queries)
 
     data = summary_response.json()
-    assert data["modelo_111"]["base"] == 1000.0
-    assert data["pagos_a_cuenta_130"]["base"] == 500.0
+    assert data["modelo_111"]["base"] == "1000.00"
+    assert data["pagos_a_cuenta_130"]["base"] == "500.00"
     content = export_response.content.decode("utf-8")
     assert "1000.0" in content
     assert "500.0" in content

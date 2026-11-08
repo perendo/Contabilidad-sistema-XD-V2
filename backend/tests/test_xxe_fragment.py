@@ -1,3 +1,6 @@
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "testpass123"
+
 
 def test_extract_xml_with_xxe_returns_400(client):
     """Dado un archivo XML FacturaE con entidades externas, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""

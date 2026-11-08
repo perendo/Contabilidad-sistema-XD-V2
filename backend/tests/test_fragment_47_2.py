@@ -1,3 +1,6 @@
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "testpass123"
+
 
 def test_constant_time_authentication_unknown_user(client):
     """Dado un usuario que intenta iniciar sesión con un email inexistente,

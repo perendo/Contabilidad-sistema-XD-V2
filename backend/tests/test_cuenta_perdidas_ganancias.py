@@ -71,11 +71,11 @@ def test_cuenta_perdidas_ganancias_returns_ingresos_gastos_resultado(client):
     assert data["date_to"] == "2026-12-31"
 
     # Ingresos: ventas 1000 (crédito)
-    assert data["total_ingresos"] == 1000.0
+    assert data["total_ingresos"] == "1000.00"
     # Gastos: compras 500 (débito)
-    assert data["total_gastos"] == 500.0
+    assert data["total_gastos"] == "500.00"
     # Resultado: 1000 - 500 = 500 beneficio
-    assert data["resultado"] == 500.0
+    assert data["resultado"] == "500.00"
     assert data["tipo_resultado"] == "beneficio"
 
 
@@ -130,16 +130,16 @@ def test_extracto_cuenta_returns_moves_with_running_balance(client):
     # Primer movimiento: Venta 1210 debe, saldo 1210
     mov1 = data["movements"][0]
     assert mov1["date"] == "2026-03-10"
-    assert mov1["debit"] == 1210.0
-    assert mov1["credit"] == 0.0
-    assert mov1["running_balance"] == 1210.0
+    assert mov1["debit"] == "1210.00"
+    assert mov1["credit"] == "0.00"
+    assert mov1["running_balance"] == "1210.00"
 
     # Segundo movimiento: Compra -710 haber, saldo 1210 - 710 = 500
     mov2 = data["movements"][1]
     assert mov2["date"] == "2026-03-15"
-    assert mov2["debit"] == 0.0
-    assert mov2["credit"] == 710.0
-    assert mov2["running_balance"] == 500.0
+    assert mov2["debit"] == "0.00"
+    assert mov2["credit"] == "710.00"
+    assert mov2["running_balance"] == "500.00"
 
 
 def test_cuenta_perdidas_ganancias_idempotent_same_params(client):
@@ -166,6 +166,99 @@ def test_cuenta_perdidas_ganancias_idempotent_same_params(client):
     second = client.get("/cuenta-perdidas-ganancias", params=params, headers=headers)
     assert second.status_code == 200
     assert second.json() == first.json()
+
+
+def test_cuenta_perdidas_ganancias_totals_match_line_sum(client):
+    from decimal import Decimal
+
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts = _setup_pnl(client, headers)
+
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-10",
+            "description": "Venta con decimales",
+            "lines": [
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 1210.5, "credit": 0},
+                {"account_id": accounts["700"]["id"], "description": "Venta", "debit": 0, "credit": 1000.5},
+                {"account_id": accounts["4770"]["id"], "description": "IVA", "debit": 0, "credit": 210},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-15",
+            "description": "Compra con decimales",
+            "lines": [
+                {"account_id": accounts["600"]["id"], "description": "Compra", "debit": 500.25, "credit": 0},
+                {"account_id": accounts["4770"]["id"], "description": "IVA soportado", "debit": 210, "credit": 0},
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 0, "credit": 710.25},
+            ],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/cuenta-perdidas-ganancias",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Ingresos: venta 1000.50 (crédito). Gastos: compra 500.25 (débito).
+    # Resultado: 1000.50 - 500.25 = 500.25
+    assert Decimal(data["total_ingresos"]) == Decimal("1000.50")
+    assert Decimal(data["total_gastos"]) == Decimal("500.25")
+    assert Decimal(data["resultado"]) == Decimal("500.25")
+
+
+def test_cuenta_perdidas_ganancias_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts = _setup_pnl(client, headers)
+
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-10",
+            "description": "Venta con decimales",
+            "lines": [
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 1210.5, "credit": 0},
+                {"account_id": accounts["700"]["id"], "description": "Venta", "debit": 0, "credit": 1000.5},
+                {"account_id": accounts["4770"]["id"], "description": "IVA", "debit": 0, "credit": 210},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-15",
+            "description": "Compra con decimales",
+            "lines": [
+                {"account_id": accounts["600"]["id"], "description": "Compra", "debit": 500.25, "credit": 0},
+                {"account_id": accounts["4770"]["id"], "description": "IVA soportado", "debit": 210, "credit": 0},
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 0, "credit": 710.25},
+            ],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/cuenta-perdidas-ganancias",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_ingresos"] == "1000.50"
+    assert data["total_gastos"] == "500.25"
+    assert data["resultado"] == "500.25"
 
 
 def test_extracto_cuenta_idempotent_same_params(client):
@@ -196,3 +289,43 @@ def test_extracto_cuenta_idempotent_same_params(client):
     second = client.get("/extracto-cuenta", params=params, headers=headers)
     assert second.status_code == 200
     assert second.json() == first.json()
+
+
+def test_extracto_cuenta_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts = _setup_pnl(client, headers)
+
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-10",
+            "description": "Venta con decimales",
+            "lines": [
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 1210.5, "credit": 0},
+                {"account_id": accounts["700"]["id"], "description": "Venta", "debit": 0, "credit": 1000.5},
+                {"account_id": accounts["4770"]["id"], "description": "IVA", "debit": 0, "credit": 210},
+            ],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/extracto-cuenta",
+        params={
+            "account_id": accounts["572"]["id"],
+            "date_from": "2026-01-01",
+            "date_to": "2026-12-31",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["movements"]) == 1
+    mov = data["movements"][0]
+    assert mov["debit"] == "1210.50"
+    assert mov["credit"] == "0.00"
+    assert mov["running_balance"] == "1210.50"
+    assert data["total_debit"] == "1210.50"
+    assert data["total_credit"] == "0.00"
+    assert data["final_balance"] == "1210.50"

@@ -107,12 +107,12 @@ def test_libro_registro_devuelve_emitidas_y_recibidas_con_campos_fiscales(client
     assert fila_emitida["number"] == 1
     assert fila_emitida["third_party_tax_id"] == "B12345678"
     assert fila_emitida["third_party_name"] == "Cliente Uno SL"
-    assert fila_emitida["base_amount"] == 1000.0
-    assert fila_emitida["vat_rate"] == 21.0
-    assert fila_emitida["vat_amount"] == 210.0
-    assert fila_emitida["irpf_rate"] == 15.0
-    assert fila_emitida["irpf_amount"] == 150.0
-    assert fila_emitida["total"] == 1060.0
+    assert fila_emitida["base_amount"] == "1000.00"
+    assert fila_emitida["vat_rate"] == "21.00"
+    assert fila_emitida["vat_amount"] == "210.00"
+    assert fila_emitida["irpf_rate"] == "15.00"
+    assert fila_emitida["irpf_amount"] == "150.00"
+    assert fila_emitida["total"] == "1060.00"
 
     recibidas = data["recibidas"]
     assert len(recibidas) == 1
@@ -121,12 +121,63 @@ def test_libro_registro_devuelve_emitidas_y_recibidas_con_campos_fiscales(client
     assert fila_recibida["supplier_number"] == "F-2026-0100"
     assert fila_recibida["third_party_tax_id"] == "B87654321"
     assert fila_recibida["third_party_name"] == "Proveedor Uno SL"
-    assert fila_recibida["base_amount"] == 2000.0
-    assert fila_recibida["vat_rate"] == 21.0
-    assert fila_recibida["vat_amount"] == 420.0
-    assert fila_recibida["irpf_rate"] == 15.0
-    assert fila_recibida["irpf_amount"] == 300.0
-    assert fila_recibida["total"] == 2120.0
+    assert fila_recibida["base_amount"] == "2000.00"
+    assert fila_recibida["vat_rate"] == "21.00"
+    assert fila_recibida["vat_amount"] == "420.00"
+    assert fila_recibida["irpf_rate"] == "15.00"
+    assert fila_recibida["irpf_amount"] == "300.00"
+    assert fila_recibida["total"] == "2120.00"
+
+
+def test_libro_registro_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente, proveedor = _setup_libro_registro(client, headers)
+
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": cliente["id"],
+            "description": "Servicio con decimales",
+            "base_amount": 100.5,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-04-15",
+            "supplier_id": proveedor["id"],
+            "supplier_number": "F-2026-0101",
+            "description": "Compra con decimales",
+            "base_amount": 200.25,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/libro-registro",
+        params={"year": 2026},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    fila_emitida = data["emitidas"][0]
+    assert fila_emitida["base_amount"] == "100.50"
+    assert fila_emitida["vat_rate"] == "21.00"
+    assert fila_emitida["vat_amount"] == "21.11"
+    assert fila_emitida["total"] == "121.61"
+    fila_recibida = data["recibidas"][0]
+    assert fila_recibida["base_amount"] == "200.25"
+    assert fila_recibida["vat_rate"] == "21.00"
+    assert fila_recibida["vat_amount"] == "42.05"
+    assert fila_recibida["total"] == "242.30"
+    assert data["total_emitidas"] == "121.61"
+    assert data["total_recibidas"] == "242.30"
 
 
 def test_libro_registro_filtra_por_ejercicio(client):

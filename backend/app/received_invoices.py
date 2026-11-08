@@ -11,7 +11,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_serializer
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -86,18 +86,31 @@ class ReceivedInvoiceOut(BaseModel):
     third_party_id: int
     supplier_number: str
     description: str
-    base_amount: float
-    vat_rate: float
-    vat_amount: float
-    total: float
-    irpf_rate: float | None
-    irpf_amount: float | None
+    base_amount: Decimal | float | None
+    vat_rate: Decimal | float | None
+    vat_amount: Decimal | float | None
+    total: Decimal | float | None
+    irpf_rate: Decimal | float | None
+    irpf_amount: Decimal | float | None
     expense_account_id: int
     entry_id: int | None
     status: str
     approved_by: str | None = None
     approved_at: DateTime | None = None
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer(
+        "base_amount",
+        "vat_rate",
+        "vat_amount",
+        "total",
+        "irpf_rate",
+        "irpf_amount",
+    )
+    def _serialize_amount(self, v: Decimal | float | None) -> str | None:
+        if v is None:
+            return None
+        return f"{v:.2f}"
 
 
 class ReceivedInvoicePendingOut(BaseModel):

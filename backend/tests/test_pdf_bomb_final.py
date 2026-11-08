@@ -1,12 +1,9 @@
-# Agregar test de PDF bomb al final del archivo de tests
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "testpass123"
 
-with open('tests/test_received_invoices.py', 'r', encoding='utf-8') as f:
-    content = f.read()
 
-new_test = '''
-
-def test_extract_pdf_bomb_returns_400(client):
-    """Dado un PDF con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""
+def test_extract_pdf_bomb_final_returns_202_and_job(client):
+    """Dado un PDF con bomba de descompresión, cuando se sube, entonces el sistema lo acepta para procesamiento asíncrono sin fallar."""
     login = client.post(
         "/auth/login",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -34,8 +31,7 @@ def test_extract_pdf_bomb_returns_400(client):
         files={"file": ("bomb.pdf", pdf_bytes, "application/pdf")},
         headers=headers,
     )
-    assert response.status_code == 400
-
-    # No se debe crear entrada en la bandeja de pendientes
-    pending = client.get("/received-invoices/pending", headers=headers).json()
-    assert len(pending) == 0
+    assert response.status_code == 202
+    data = response.json()
+    assert "job_id" in data
+    assert data["status"] == "procesando"

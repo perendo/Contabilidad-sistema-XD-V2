@@ -993,3 +993,35 @@ def test_list_entries_uses_default_page_size(client):
 
     assert len(default_page) == 50
     assert len(full_page) == 51
+
+
+def test_journal_line_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    acc_debit = client.post(
+        "/accounts",
+        json={"code": "572", "name": "Bancos", "type": "Activo", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+    acc_credit = client.post(
+        "/accounts",
+        json={"code": "700", "name": "Ventas", "type": "Ingreso", "level": 1, "is_detail": True},
+        headers=headers,
+    ).json()
+
+    created = client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-01-15",
+            "description": "Importes con decimales",
+            "lines": [
+                {"account_id": acc_debit["id"], "description": "D", "debit": 100.5, "credit": 0},
+                {"account_id": acc_credit["id"], "description": "H", "debit": 0, "credit": 100.5},
+            ],
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201
+    data = created.json()
+    assert data["lines"][0]["debit"] == "100.50"
+    assert data["lines"][1]["credit"] == "100.50"

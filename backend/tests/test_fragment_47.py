@@ -1,3 +1,6 @@
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "testpass123"
+
 
 def test_rate_limit_after_failed_login_attempts(client):
     """Dado un usuario que intenta iniciar sesión con contraseña incorrecta varias veces,

@@ -1,6 +1,7 @@
 from datetime import date
+from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class MovementOut(BaseModel):
@@ -8,9 +9,15 @@ class MovementOut(BaseModel):
     entry_id: int
     entry_description: str
     description: str
-    debit: float
-    credit: float
-    running_balance: float
+    debit: Decimal | float | None
+    credit: Decimal | float | None
+    running_balance: Decimal | float | None
+
+    @field_serializer("debit", "credit", "running_balance")
+    def _serialize_amount(self, v: Decimal | float | None) -> str | None:
+        if v is None:
+            return None
+        return f"{v:.2f}"
 
 
 class ExtractoCuentaOut(BaseModel):
@@ -20,7 +27,13 @@ class ExtractoCuentaOut(BaseModel):
     date_from: date | None
     date_to: date | None
     movements: list[MovementOut]
-    total_debit: float
-    total_credit: float
-    final_balance: float
+    total_debit: Decimal | float | None
+    total_credit: Decimal | float | None
+    final_balance: Decimal | float | None
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("total_debit", "total_credit", "final_balance")
+    def _serialize_total(self, v: Decimal | float | None) -> str | None:
+        if v is None:
+            return None
+        return f"{v:.2f}"

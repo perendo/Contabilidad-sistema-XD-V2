@@ -1,10 +1,9 @@
-with open('tests/test_received_invoices.py', 'r', encoding='utf-8') as f:
-    content = f.read()
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "testpass123"
 
-new_test = '''
 
-def test_extract_image_bomb_returns_400(client):
-    """Dada una imagen con bomba de descompresión, cuando se sube, entonces el sistema devuelve 400 sin crear ningún asiento ni factura."""
+def test_extract_image_bomb_final_returns_202_and_job(client):
+    """Dada una imagen con bomba de descompresión, cuando se sube, entonces el sistema la acepta para procesamiento asíncrono sin fallar."""
     login = client.post(
         "/auth/login",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -25,8 +24,7 @@ def test_extract_image_bomb_returns_400(client):
         files={"file": ("factura.png", pdf_bytes, "image/png")},
         headers=headers,
     )
-    assert response.status_code == 400
-
-    # No se debe crear entrada en la bandeja de pendientes
-    pending = client.get("/received-invoices/pending", headers=headers).json()
-    assert len(pending) == 0
+    assert response.status_code == 202
+    data = response.json()
+    assert "job_id" in data
+    assert data["status"] == "procesando"

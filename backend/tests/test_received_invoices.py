@@ -427,10 +427,10 @@ def test_create_received_invoice_saves_supplier_number_and_totals(client):
     assert data["third_party_id"] == supplier["id"]
     assert data["supplier_number"] == "F-2026-0042"
     assert data["description"] == "Compra de mercaderías"
-    assert data["base_amount"] == 200
-    assert data["vat_rate"] == 21
-    assert data["vat_amount"] == 42
-    assert data["total"] == 242
+    assert data["base_amount"] == "200.00"
+    assert data["vat_rate"] == "21.00"
+    assert data["vat_amount"] == "42.00"
+    assert data["total"] == "242.00"
     assert data["expense_account_id"] == accounts["6000"]["id"]
 
     listing = client.get("/received-invoices", headers=headers)
@@ -439,7 +439,37 @@ def test_create_received_invoice_saves_supplier_number_and_totals(client):
     assert len(listed) == 1
     assert listed[0]["id"] == data["id"]
     assert listed[0]["supplier_number"] == "F-2026-0042"
-    assert listed[0]["total"] == 242
+    assert listed[0]["total"] == "242.00"
+
+
+def test_received_invoice_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, supplier = _setup_accounts_and_supplier(client, headers)
+
+    payload = {
+        "date": "2026-04-02",
+        "supplier_id": supplier["id"],
+        "supplier_number": "F-2026-0043",
+        "description": "Compra de mercaderías",
+        "base_amount": 100.5,
+        "vat_rate": 21,
+        "expense_account_id": accounts["6000"]["id"],
+    }
+    post = client.post("/received-invoices", json=payload, headers=headers)
+    assert post.status_code == 201
+    data = post.json()
+    assert data["base_amount"] == "100.50"
+    assert data["vat_rate"] == "21.00"
+    assert data["vat_amount"] == "21.11"
+    assert data["total"] == "121.61"
+
+    listing = client.get("/received-invoices", headers=headers).json()
+    listed = listing[0]
+    assert listed["base_amount"] == "100.50"
+    assert listed["vat_rate"] == "21.00"
+    assert listed["vat_amount"] == "21.11"
+    assert listed["total"] == "121.61"
 
 
 @pytest.mark.parametrize(
@@ -466,8 +496,8 @@ def test_received_invoice_books_vat_to_account_for_each_rate(
         },
         headers=headers,
     ).json()
-    assert invoice["vat_amount"] == expected_vat
-    assert invoice["total"] == 200 + expected_vat
+    assert invoice["vat_amount"] == f"{expected_vat:.2f}"
+    assert invoice["total"] == f"{200 + expected_vat:.2f}"
 
     entries = client.get("/journal-entries", headers=headers).json()
     entry = [e for e in entries if e["id"] == invoice["entry_id"]][0]
@@ -733,8 +763,8 @@ def test_received_invoice_rounds_vat_half_up(client):
     )
     assert created.status_code == 201
     data = created.json()
-    assert data["vat_amount"] == 0.11
-    assert data["total"] == 0.61
+    assert data["vat_amount"] == "0.11"
+    assert data["total"] == "0.61"
 
     entries = client.get("/journal-entries", headers=headers).json()
     entry = [e for e in entries if e["id"] == data["entry_id"]][0]
@@ -1026,9 +1056,9 @@ def test_confirm_received_invoice_creates_entry_and_attachment(client):
     data = response.json()
     assert data["supplier_number"] == "F-001"
     assert data["description"] == "Compra de mercaderías"
-    assert data["base_amount"] == 100.0
-    assert data["vat_rate"] == 21.0
-    assert data["total"] == 121.0
+    assert data["base_amount"] == "100.00"
+    assert data["vat_rate"] == "21.00"
+    assert data["total"] == "121.00"
     assert data["entry_id"] is not None
     assert data["status"] == "pendiente"
 

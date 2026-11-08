@@ -165,15 +165,15 @@ def test_fiscal_endpoints_isolate_by_company(client):
     iva_a = client.get("/iva-liquidation", headers=h_a)
     assert iva_a.status_code == 200
     data_a = iva_a.json()
-    assert data_a["iva_devengado"] == 0.0  # No hay facturas emitidas en A
-    assert data_a["iva_deducible"] == 21.0  # Solo IVA de factura F-A-001 (100 * 21%)
+    assert data_a["iva_devengado"] == "0.00"
+    assert data_a["iva_deducible"] == "21.00"
 
     # Empresa B no debe ver facturas de empresa A en IVA liquidation
     iva_b = client.get("/iva-liquidation", headers=h_b)
     assert iva_b.status_code == 200
     data_b = iva_b.json()
-    assert data_b["iva_devengado"] == 0.0
-    assert data_b["iva_deducible"] == 105.0  # Solo IVA de factura F-B-001 (500 * 21%)
+    assert data_b["iva_devengado"] == "0.00"
+    assert data_b["iva_deducible"] == "105.00"
 
     # Libro registro: empresa A solo ve sus facturas
     libro_a = client.get("/libro-registro?year=2026", headers=h_a)

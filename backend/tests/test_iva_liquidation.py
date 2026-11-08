@@ -89,9 +89,52 @@ def test_iva_liquidation_period_totals_and_balance(client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["iva_devengado"] == 21.0
-    assert data["iva_deducible"] == 42.0
-    assert data["saldo"] == -21.0
+    assert data["iva_devengado"] == "21.00"
+    assert data["iva_deducible"] == "42.00"
+    assert data["saldo"] == "-21.00"
+    assert data["tipo_saldo"] == "a compensar"
+
+
+def test_iva_liquidation_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente, proveedor = _setup(client, headers)
+
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-05-10",
+            "client_id": cliente["id"],
+            "description": "Servicio con decimales",
+            "base_amount": 100.5,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-05-12",
+            "supplier_id": proveedor["id"],
+            "supplier_number": "F-2026-0100",
+            "description": "Compra con decimales",
+            "base_amount": 200.25,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/iva-liquidation",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["iva_devengado"] == "21.11"
+    assert data["iva_deducible"] == "42.05"
+    assert data["saldo"] == "-20.94"
     assert data["tipo_saldo"] == "a compensar"
 
 
@@ -145,15 +188,15 @@ def test_iva_liquidation_vat_rate_breakdown(client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["iva_devengado"] == 21.0
-    assert data["iva_deducible"] == 32.0
-    assert data["saldo"] == -11.0
+    assert data["iva_devengado"] == "21.00"
+    assert data["iva_deducible"] == "32.00"
+    assert data["saldo"] == "-11.00"
     assert data["tipo_saldo"] == "a compensar"
     assert data["breakdown"] == {
-        "21": {"devengado": 21.0, "deducible": 0.0},
-        "10": {"devengado": 0.0, "deducible": 20.0},
-        "4": {"devengado": 0.0, "deducible": 12.0},
-        "0": {"devengado": 0.0, "deducible": 0.0},
+        "21": {"devengado": "21.00", "deducible": "0.00"},
+        "10": {"devengado": "0.00", "deducible": "20.00"},
+        "4": {"devengado": "0.00", "deducible": "12.00"},
+        "0": {"devengado": "0.00", "deducible": "0.00"},
     }
 
 

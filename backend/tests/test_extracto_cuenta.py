@@ -89,9 +89,9 @@ def test_extracto_cuenta_only_includes_accepted_entries(client):
     data = response.json()
 
     assert [m["entry_id"] for m in data["movements"]] == [accepted.json()["id"]]
-    assert data["total_debit"] == 100.0
-    assert data["total_credit"] == 0.0
-    assert data["final_balance"] == 100.0
+    assert data["total_debit"] == "100.00"
+    assert data["total_credit"] == "0.00"
+    assert data["final_balance"] == "100.00"
 
 
 def test_extracto_cuenta_unknown_account_returns_404(client):

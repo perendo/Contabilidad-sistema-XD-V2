@@ -1,16 +1,29 @@
 from datetime import date
+from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class Modelo111Summary(BaseModel):
-    base: float
-    retenciones_a_ingresar: float
+    base: Decimal | float | None
+    retenciones_a_ingresar: Decimal | float | None
+
+    @field_serializer("base", "retenciones_a_ingresar")
+    def _serialize_amount(self, v: Decimal | float | None) -> str | None:
+        if v is None:
+            return None
+        return f"{v:.2f}"
 
 
 class PagosACuenta130Summary(BaseModel):
-    base: float
-    retenciones_soportadas: float
+    base: Decimal | float | None
+    retenciones_soportadas: Decimal | float | None
+
+    @field_serializer("base", "retenciones_soportadas")
+    def _serialize_amount(self, v: Decimal | float | None) -> str | None:
+        if v is None:
+            return None
+        return f"{v:.2f}"
 
 
 class IRPFSummaryOut(BaseModel):

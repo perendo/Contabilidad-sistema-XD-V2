@@ -65,19 +65,19 @@ def test_create_issued_invoice_returns_number_totals_and_lists_it(client):
     assert data["date"] == "2026-03-10"
     assert data["third_party_id"] == client_third_party["id"]
     assert data["description"] == "Servicios de consultoría"
-    assert data["base_amount"] == 100
-    assert data["vat_rate"] == 21
-    assert data["vat_amount"] == 21
-    assert data["total"] == 121
+    assert data["base_amount"] == "100.00"
+    assert data["vat_rate"] == "21.00"
+    assert data["vat_amount"] == "21.00"
+    assert data["total"] == "121.00"
 
     listing = client.get("/invoices", headers=headers)
     assert listing.status_code == 200
     listed = listing.json()
     assert len(listed) == 1
     assert listed[0]["id"] == data["id"]
-    assert listed[0]["base_amount"] == 100
-    assert listed[0]["vat_amount"] == 21
-    assert listed[0]["total"] == 121
+    assert listed[0]["base_amount"] == "100.00"
+    assert listed[0]["vat_amount"] == "21.00"
+    assert listed[0]["total"] == "121.00"
 
 
 def test_issued_invoice_number_is_sequential_per_fiscal_year(client):
@@ -450,3 +450,31 @@ def test_list_invoices_paginates_with_limit_and_offset(client):
 
     assert [invoice["id"] for invoice in first_page] == invoice_ids[:2]
     assert [invoice["id"] for invoice in second_page] == invoice_ids[2:]
+
+
+def test_invoice_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    _, client_third_party = _setup_accounts_and_client(client, headers)
+
+    payload = {
+        "date": "2026-03-10",
+        "client_id": client_third_party["id"],
+        "description": "Servicio",
+        "base_amount": 100.5,
+        "vat_rate": 21,
+    }
+    post = client.post("/invoices", json=payload, headers=headers)
+    assert post.status_code == 201
+    data = post.json()
+    assert data["base_amount"] == "100.50"
+    assert data["vat_rate"] == "21.00"
+    assert data["vat_amount"] == "21.11"
+    assert data["total"] == "121.61"
+
+    listing = client.get("/invoices", headers=headers).json()
+    listed = listing[0]
+    assert listed["base_amount"] == "100.50"
+    assert listed["vat_rate"] == "21.00"
+    assert listed["vat_amount"] == "21.11"
+    assert listed["total"] == "121.61"

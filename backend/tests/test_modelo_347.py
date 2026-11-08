@@ -159,13 +159,56 @@ def test_modelo_347_returns_third_parties_above_threshold(client):
     assert response.status_code == 200
     data = response.json()
     assert data["year"] == 2026
-    assert data["threshold"] == 3005.06
+    assert data["threshold"] == "3005.06"
     tax_ids = {item["tax_id"] for item in data["third_parties"]}
     assert cliente_alto["tax_id"] in tax_ids
     assert proveedor_alto["tax_id"] in tax_ids
     assert cliente_bajo["tax_id"] not in tax_ids
     assert proveedor_bajo["tax_id"] not in tax_ids
     assert len(data["third_parties"]) == 2
+
+
+def test_modelo_347_out_serializes_two_decimals(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente_alto, cliente_bajo, proveedor_alto, proveedor_bajo = _setup_modelo_347(client, headers)
+
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": cliente_alto["id"],
+            "description": "Servicios con decimales",
+            "base_amount": 100.5,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-04-15",
+            "supplier_id": proveedor_alto["id"],
+            "supplier_number": "F-2026-0201",
+            "description": "Compra con decimales",
+            "base_amount": 200.25,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/modelo-347",
+        params={"year": 2026, "threshold": 100},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["threshold"] == "100.00"
+    by_tax = {item["tax_id"]: item["total_annual"] for item in data["third_parties"]}
+    assert by_tax[cliente_alto["tax_id"]] == "121.61"
+    assert by_tax[proveedor_alto["tax_id"]] == "242.30"
 
 
 def test_modelo_347_excludes_third_parties_below_threshold(client):
@@ -332,5 +375,5 @@ def test_modelo_347_and_export_use_constant_queries(client, count_queries):
         item["tax_id"]: item["total_annual"]
         for item in json_response.json()["third_parties"]
     }
-    assert totals == {"B11111111": 19360.0, "B33333333": 19360.0}
+    assert totals == {"B11111111": "19360.00", "B33333333": "19360.00"}
     assert "19360.0" in export_response.content.decode("utf-8")

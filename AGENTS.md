@@ -62,8 +62,8 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 50. [x] Como administrador, quiero que la numeración de facturas sea correlativa y aislada por empresa para cumplir con la normativa tributaria.
 51. [x] Como desarrollador backend, quiero que las consultas a la base de datos usen joins eficientes y agregación SQL para evitar problemas de rendimiento.
 52. [x] Como administrador, quiero que los listados de datos estén paginados para evitar el colapso del servidor y del frontend.
-53. [ ] Como desarrollador backend, quiero que el código esté organizado en capas separadas (rutas, servicios, repositorios) para facilitar el mantenimiento y la seguridad.
-54. [ ] Como administrador, quiero que los importes contables se manejen con precisión decimal para evitar errores en informes fiscales.
+53. [x] Como desarrollador backend, quiero que el código esté organizado en capas separadas (rutas, servicios, repositorios) para facilitar el mantenimiento y la seguridad.
+54. [x] Como administrador, quiero que los importes contables se manejen con precisión decimal para evitar errores en informes fiscales.
 55. [ ] Como desarrollador frontend, quiero que la interfaz tenga componentes reutilizables y manejo de errores adecuado para facilitar el mantenimiento.
 56. [ ] Como desarrollador frontend, quiero que CORS permita el encabezado X-Company-Id para evitar errores en llamadas entre dominios.
 57. [ ] Como administrador, quiero que el sistema mantenga un registro inalterable de auditoría para cumplir con la Ley Antifraude y Veri*factu. Requiere: #45.
