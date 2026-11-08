@@ -77,6 +77,7 @@ type CompanyFormValues = {
 
 export default function HomePage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [activeCompanyId, setActiveCompanyIdState] = useState<number | null>(() => {
@@ -169,6 +170,10 @@ export default function HomePage() {
     })();
   }, [router]);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   async function logout() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("fiscal_year_selected");
@@ -238,7 +243,7 @@ export default function HomePage() {
     setEditingCompany(false);
   }
 
-  if (!isAuthenticated()) return null;
+  if (!mounted || !isAuthenticated()) return null;
 
   return (
     <>
