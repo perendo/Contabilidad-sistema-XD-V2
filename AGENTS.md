@@ -71,7 +71,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 59. [x] Como administrador, quiero que el extracto de cuenta muestre el saldo inicial correcto para tener una visión real de mis finanzas.
 60. [x] Como administrador, quiero que el Modelo 347 tenga desglose trimestral y excluya facturas con retención de IRPF para cumplir con la AEAT. Requiere: #45.
 61. [ ] Como desarrollador frontend, quiero que todas las páginas compartan una cabecera reutilizable con título, cambio de tema, enlace al panel y salida, para que la navegación sea coherente y no haya que mantener catorce copias.
-62. [ ] Como desarrollador frontend, quiero estados reutilizables de carga, vacío y error junto con la paginación, para que los listados se comporten igual en toda la aplicación.
+62. [x] Como desarrollador frontend, quiero estados reutilizables de carga, vacío y error junto con la paginación, para que los listados se comporten igual en toda la aplicación.
 63. [ ] Como administrador, quiero que al caducar mi sesión se borre también el marcador `auth_session` cuando la aplicación usa un dominio de cookie configurado (`COOKIE_DOMAIN`), para que no quede una sesión fantasma ni rebotes entre la aplicación y el acceso. Requiere: #55.
 
 ## Automatización de facturas con agente (nuevo epic)
