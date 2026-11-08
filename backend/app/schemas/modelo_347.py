@@ -7,9 +7,15 @@ class ThirdPartySummaryOut(BaseModel):
     third_party_id: int
     tax_id: str
     name: str
+    total_q1: Decimal | float | None
+    total_q2: Decimal | float | None
+    total_q3: Decimal | float | None
+    total_q4: Decimal | float | None
     total_annual: Decimal | float | None
 
-    @field_serializer("total_annual")
+    @field_serializer(
+        "total_q1", "total_q2", "total_q3", "total_q4", "total_annual"
+    )
     def _serialize_amount(self, v: Decimal | float | None) -> str | None:
         if v is None:
             return None

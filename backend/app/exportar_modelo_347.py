@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from .auth import get_current_user
 from .company_context import active_company_id_dep
 from .database import get_db
-from .modelo_347 import compute_modelo_347
 from .models import User
+from .repositories.modelo_347 import Modelo347Repository
 
 router = APIRouter(tags=["exportar-modelo-347"])
 
@@ -100,5 +100,6 @@ def exportar_modelo_347(
     db: Session = Depends(get_db),
     company_id: int | None = Depends(active_company_id_dep),
 ):
-    data = compute_modelo_347(db, year, threshold, company_id)
+    repo = Modelo347Repository(db)
+    data = repo.compute(year, threshold, company_id)
     return _respond(data, format, "modelo-347")

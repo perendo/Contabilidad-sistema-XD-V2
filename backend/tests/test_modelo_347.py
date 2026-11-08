@@ -377,3 +377,172 @@ def test_modelo_347_and_export_use_constant_queries(client, count_queries):
     }
     assert totals == {"B11111111": "19360.00", "B33333333": "19360.00"}
     assert "19360.0" in export_response.content.decode("utf-8")
+
+
+def test_modelo_347_excludes_invoices_with_irpf(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente_alto, cliente_bajo, proveedor_alto, proveedor_bajo = _setup_modelo_347(
+        client, headers
+    )
+
+    # Factura emitida sin IRPF: se incluye (total anual > umbral)
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-03-10",
+            "client_id": cliente_alto["id"],
+            "description": "Servicios sin retención",
+            "base_amount": 4000,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    # Factura emitida con IRPF: se excluye aunque supere el umbral
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-04-10",
+            "client_id": cliente_bajo["id"],
+            "description": "Servicios con retención",
+            "base_amount": 5000,
+            "vat_rate": 21,
+            "irpf_rate": 15,
+            "irpf_amount": 750,
+        },
+        headers=headers,
+    )
+    # Factura recibida con IRPF: se excluye aunque supere el umbral
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-05-10",
+            "supplier_id": proveedor_bajo["id"],
+            "supplier_number": "F-2026-0300",
+            "description": "Compra con retención",
+            "base_amount": 5000,
+            "vat_rate": 21,
+            "irpf_rate": 15,
+            "irpf_amount": 750,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+    # Factura recibida sin IRPF: se incluye (total anual > umbral)
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-06-10",
+            "supplier_id": proveedor_alto["id"],
+            "supplier_number": "F-2026-0301",
+            "description": "Compra sin retención",
+            "base_amount": 4000,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/modelo-347",
+        params={"year": 2026, "threshold": 3000},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    tax_ids = {item["tax_id"] for item in data["third_parties"]}
+    # cliente_alto y proveedor_alto (sin IRPF) sí aparecen
+    assert cliente_alto["tax_id"] in tax_ids
+    assert proveedor_alto["tax_id"] in tax_ids
+    # cliente_bajo y proveedor_bajo (con IRPF) NO aparecen
+    assert cliente_bajo["tax_id"] not in tax_ids
+    assert proveedor_bajo["tax_id"] not in tax_ids
+
+
+def test_modelo_347_includes_quarterly_breakdown(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts, cliente_alto, cliente_bajo, proveedor_alto, proveedor_bajo = _setup_modelo_347(
+        client, headers
+    )
+
+    # Q1 (ene-mar): factura emitida para cliente_alto
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-02-10",
+            "client_id": cliente_alto["id"],
+            "description": "Venta Q1",
+            "base_amount": 2000,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    # Q2 (abr-jun): factura recibida para proveedor_alto
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-05-10",
+            "supplier_id": proveedor_alto["id"],
+            "supplier_number": "F-2026-0500",
+            "description": "Compra Q2",
+            "base_amount": 3000,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+    # Q3 (jul-sep): factura emitida para cliente_alto
+    client.post(
+        "/invoices",
+        json={
+            "date": "2026-08-10",
+            "client_id": cliente_alto["id"],
+            "description": "Venta Q3",
+            "base_amount": 1000,
+            "vat_rate": 21,
+        },
+        headers=headers,
+    )
+    # Q4 (oct-dic): factura recibida para proveedor_alto
+    client.post(
+        "/received-invoices",
+        json={
+            "date": "2026-11-10",
+            "supplier_id": proveedor_alto["id"],
+            "supplier_number": "F-2026-0600",
+            "description": "Compra Q4",
+            "base_amount": 2500,
+            "vat_rate": 21,
+            "expense_account_id": accounts["6000"]["id"],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/modelo-347",
+        params={"year": 2026, "threshold": 100},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    by_tax = {item["tax_id"]: item for item in data["third_parties"]}
+    print("DEBUG third_parties:", data["third_parties"])
+    assert cliente_alto["tax_id"] in by_tax
+    assert proveedor_alto["tax_id"] in by_tax
+
+    ca = by_tax[cliente_alto["tax_id"]]
+    print("DEBUG ca:", ca)
+    assert ca["total_q1"] == "2420.00"
+    assert ca["total_q2"] == "0.00"
+    assert ca["total_q3"] == "1210.00"
+    assert ca["total_q4"] == "0.00"
+    assert ca["total_annual"] == "3630.00"
+
+    pa = by_tax[proveedor_alto["tax_id"]]
+    assert pa["total_q1"] == "0.00"
+    assert pa["total_q2"] == "3630.00"
+    assert pa["total_q3"] == "0.00"
+    assert pa["total_q4"] == "3025.00"
+    assert pa["total_annual"] == "6655.00"
