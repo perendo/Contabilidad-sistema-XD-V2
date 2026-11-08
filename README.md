@@ -95,6 +95,28 @@ pytest
 
 Los tests usan `TEST_DATABASE_URL` y recrean el esquema en cada ejecución.
 
+Frontend (Vitest + Testing Library):
+
+```bash
+cd frontend
+npm test
+```
+
+## Auditoría
+
+El proyecto ha superado una re-auditoría externa independiente (Gemini, noviembre 2026) con un dictamen de **94/100 — SOBRESALIENTE** (frente a 71/100 en la primera revisión). El informe completo está en [`Historico/AUDITORIA-Contabilidad-Sistema-XD-V2.md`](Historico/AUDITORIA-Contabilidad-Sistema-XD-V2.md).
+
+| Área | Nota |
+| --- | --- |
+| Lógica contable y AEAT | 96/100 |
+| Seguridad y autenticación | 94/100 |
+| Base de datos y rendimiento | 92/100 |
+| Arquitectura backend | 93/100 |
+| Frontend Next.js | 91/100 |
+| Testing y cobertura | 98/100 |
+
+Hitos verificados por la auditoría: separación de IRPF por modelo (111 y 130), total de factura con deducción de IRPF (4730/4751), informes que solo consideran asientos aceptados, documentos en disco con límite de tamaño y validación MIME, agregación en SQL, frontend completo con componentes reutilizables, aislamiento multisociedad, saneado de fórmulas en exportaciones, protección frente a ataques de temporización y registro de auditoría inmutable.
+
 ## Funcionalidades implementadas
 
 - Autenticación por email/contraseña (usuario seed) y configuración de empresa.
@@ -121,7 +143,7 @@ Los tests usan `TEST_DATABASE_URL` y recrean el esquema en cada ejecución.
 backend/   API FastAPI, modelos, migraciones y tests
 frontend/  Aplicación Next.js
 Data/      (local, no versionado)
-Historias/ (local, no versionado)
+Historico/ (planes de historia e informes de auditoría)
 ```
 
 ## Licencia

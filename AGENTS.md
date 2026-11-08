@@ -7,6 +7,25 @@ Stack: FastAPI + Next.js + PostgreSQL
 
 Decisiones costosas: single-tenant, rol único (email/contraseña), solo online, idioma único (español) y moneda única (EUR).
 
+## Auditoría externa (noviembre 2026)
+
+Re-auditoría independiente (Gemini) con dictamen **94/100 — SOBRESALIENTE**, frente a los 71/100 de la primera revisión. Informe completo en [`Historico/AUDITORIA-Contabilidad-Sistema-XD-V2.md`](Historico/AUDITORIA-Contabilidad-Sistema-XD-V2.md).
+
+Calificación por área: lógica contable y AEAT 96, seguridad y autenticación 94, base de datos y rendimiento 92, arquitectura backend 93, frontend Next.js 91, testing y cobertura 98.
+
+Hitos principales verificados en código:
+
+- **IRPF separado por modelo:** `modelo_111` (retenciones practicadas, cuenta 4751) y `pagos_a_cuenta_130` (retenciones soportadas, cuenta 4730), calculados con agregación SQL y expuestos en `/taxes/irpf`.
+- **Total de factura con IRPF:** `total = base + IVA − IRPF`, con apunte en 4730 (emitidas) o 4751 (recibidas) y cobro/pago por el importe neto real.
+- **Solo asientos aceptados:** balance, pérdidas y ganancias y extractos filtran `status == "accepted"` (excluyen borradores y anulados).
+- **Documentos fuera de PostgreSQL:** almacenamiento en disco con streaming por bloques, límite de 10 MB, lista blanca MIME y protección contra path traversal.
+- **Agregación en SQL:** sumas con `SUM`/`GROUP BY` en lugar de bucles en memoria, con tests que acotan el número de consultas.
+- **Frontend completo:** 14 pantallas (12 con cabecera `AppHeader` y 11 con estados `ListState`) y tests unitarios con Vitest.
+- **Aislamiento multisociedad (BOLA):** `CompanyMembership` y `active_company_id_dep` en todas las rutas.
+- **Endurecimiento adicional:** saneado de fórmulas en CSV/Excel (CWE-1236), hash bcrypt falso ante usuario inexistente (timing attacks), Norma 43 CSB y registro inmutable `AuditLog` con asientos de corrección.
+
+Recomendaciones menores para una futura 3.0: limpiar los módulos antiguos de `backend/app/` tras culminar la migración a `routes/`, aplicar streaming por chunks en `/received-invoices/extract` y valorar Redis para el rate-limiting en despliegues multi-worker.
+
 ## Backlog
 
 1. [x] Como administrador, quiero iniciar sesión con mi email y contraseña y configurar los datos básicos de mi empresa y el plan de cuentas, para poder empezar a usar el sistema.
