@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
+import ErrorAlert from "@/components/ErrorAlert";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
@@ -13,7 +14,6 @@ import {
   Paper,
   Box,
   TextField,
-  Alert,
   CircularProgress,
 } from "@mui/material";
 
@@ -76,7 +76,7 @@ export default function PygPage() {
             <TextField label="Hasta" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
             <Button variant="contained" onClick={load} disabled={loading}>Consultar</Button>
           </Box>
-          {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+          <ErrorAlert message={error} sx={{ mt: 2 }} />
         </Paper>
         {loading ? <CircularProgress /> : result && (
           <Paper sx={{ p: 3 }}>

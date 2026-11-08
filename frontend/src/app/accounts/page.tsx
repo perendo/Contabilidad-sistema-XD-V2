@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
+import ErrorAlert from "@/components/ErrorAlert";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
@@ -14,7 +15,6 @@ import {
   Paper,
   Box,
   TextField,
-  Alert,
   Table,
   TableHead,
   TableRow,
@@ -214,11 +214,7 @@ export default function AccountsPage() {
               Crear
             </Button>
           </Box>
-          {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
-            </Alert>
-          )}
+          <ErrorAlert message={error} sx={{ mt: 2 }} />
         </Paper>
 
         <Paper>

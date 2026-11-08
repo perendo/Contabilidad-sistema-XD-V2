@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
+import ErrorAlert from "@/components/ErrorAlert";
 import { api, errorMessage } from "@/lib/api";
 import {
   Box,
@@ -11,7 +12,6 @@ import {
   CardContent,
   TextField,
   Typography,
-  Alert,
 } from "@mui/material";
 
 export default function LoginPage() {
@@ -32,10 +32,14 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await api("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      await api(
+        "/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        },
+        { redirectOnUnauthorized: false }
+      );
       router.push("/");
     } catch (err) {
       setError(errorMessage(err, "Error de autenticación"));
@@ -82,7 +86,7 @@ export default function LoginPage() {
               required
               fullWidth
             />
-            {error && <Alert severity="error">{error}</Alert>}
+            <ErrorAlert message={error} />
             <Button type="submit" variant="contained" disabled={loading} fullWidth>
               {loading ? "Entrando..." : "Entrar"}
             </Button>

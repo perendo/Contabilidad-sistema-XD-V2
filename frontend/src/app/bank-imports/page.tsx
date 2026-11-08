@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { API_BASE, isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
+import ErrorAlert from "@/components/ErrorAlert";
+import { isAuthenticated, clearSession, api, errorMessage, fetchApi, ApiError } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -33,15 +34,24 @@ type ImportResult = {
   entry_ids: number[];
 };
 
-async function readError(response: Response): Promise<string> {
-  const text = await response.text();
-  try {
-    const data = JSON.parse(text);
-    if (typeof data?.detail === "string") return data.detail;
-  } catch {
-    // La respuesta no es JSON; se muestra el texto tal cual.
+type MappingDetail = {
+  headers: string[];
+  message?: string;
+};
+
+function isMappingDetail(detail: unknown): detail is MappingDetail {
+  if (
+    typeof detail !== "object" ||
+    detail === null ||
+    !("headers" in detail)
+  ) {
+    return false;
   }
-  return text || response.statusText;
+  const headers = (detail as { headers?: unknown }).headers;
+  return (
+    Array.isArray(headers) &&
+    headers.every((header) => typeof header === "string")
+  );
 }
 
 export default function BankImportsPage() {
@@ -100,35 +110,25 @@ export default function BankImportsPage() {
         body.append("amount_column", mapping.amount_column);
       }
 
-      const response = await fetch(`${API_BASE}/bank-imports`, {
+      const response = await fetchApi("/bank-imports", {
         method: "POST",
         body,
-        credentials: "include",
       });
-      if (!response.ok) {
-        const text = await response.text();
-        let parsed: any = null;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          // no JSON
-        }
-        if (parsed?.detail?.headers) {
-          setHeaders(parsed.detail.headers);
-          setDateCol(parsed.detail.headers[0] ?? "");
-          setConceptCol(parsed.detail.headers[0] ?? "");
-          setAmountCol(parsed.detail.headers[0] ?? "");
-          throw new Error(parsed.detail.message || "Se requiere mapeo de columnas");
-        }
-        throw new Error(
-          typeof parsed?.detail === "string" ? parsed.detail : text || response.statusText
-        );
-      }
       setResult(await response.json());
       setFile(null);
       setHeaders(null);
     } catch (e) {
-      setError(errorMessage(e, "Error al importar el fichero"));
+      if (e instanceof ApiError && isMappingDetail(e.detail)) {
+        setHeaders(e.detail.headers);
+        setDateCol(e.detail.headers[0] ?? "");
+        setConceptCol(e.detail.headers[0] ?? "");
+        setAmountCol(e.detail.headers[0] ?? "");
+        setError(e.detail.message || "Se requiere mapeo de columnas");
+      } else {
+        // Si ya se envió un mapeo, un fallo de filas no debe borrar la selección.
+        if (!mapping) setHeaders(null);
+        setError(errorMessage(e, "Error al importar el fichero"));
+      }
     } finally {
       setImporting(false);
     }
@@ -185,6 +185,7 @@ export default function BankImportsPage() {
                 onChange={(event) => {
                   setResult(null);
                   setError("");
+                  setHeaders(null);
                   setFile(event.target.files?.[0] ?? null);
                 }}
               />
@@ -289,11 +290,7 @@ export default function BankImportsPage() {
             </Box>
           )}
 
-          {error && (
-            <Alert severity="error" sx={{ mt: 3 }}>
-              {error}
-            </Alert>
-          )}
+          <ErrorAlert message={error} sx={{ mt: 3 }} />
 
           {result && (
             <Alert

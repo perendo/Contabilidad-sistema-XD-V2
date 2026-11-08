@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { API_BASE, isAuthenticated, clearSession, errorMessage } from "@/lib/api";
+import ErrorAlert from "@/components/ErrorAlert";
+import { isAuthenticated, clearSession, errorMessage, fetchApi } from "@/lib/api";
 import {
   AppBar,
   Toolbar,
@@ -13,7 +14,6 @@ import {
   Paper,
   Box,
   TextField,
-  Alert,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -47,12 +47,7 @@ export default function ExportPage() {
       const params = new URLSearchParams({ format });
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      const res = await fetch(`${API_BASE}/exportar-balance?${params.toString()}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error((await res.text()) || res.statusText);
-      }
+      const res = await fetchApi(`/exportar-balance?${params.toString()}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -124,7 +119,7 @@ export default function ExportPage() {
             </Button>
           </Box>
           {loading && <CircularProgress sx={{ mt: 3 }} />}
-          {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
+          <ErrorAlert message={error} sx={{ mt: 3 }} />
         </Paper>
       </Container>
     </>

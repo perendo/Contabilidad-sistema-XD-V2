@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PaginationBar from "@/components/PaginationBar";
+import ErrorAlert from "@/components/ErrorAlert";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
   AppBar,
@@ -13,7 +14,6 @@ import {
   Paper,
   Box,
   TextField,
-  Alert,
   CircularProgress,
   List,
   ListItem,
@@ -30,6 +30,7 @@ export default function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(0);
@@ -45,15 +46,15 @@ export default function UsersPage() {
   }, [router]);
 
   async function load(nextPage = page) {
+    setLoadError("");
     try {
       const list = await api(
         `/users?limit=${PAGE_SIZE}&offset=${nextPage * PAGE_SIZE}`
       );
       setUsers(list);
       setHasMore(list.length === PAGE_SIZE);
-    } catch {
-      await clearSession();
-      router.push("/login");
+    } catch (err) {
+      setLoadError(errorMessage(err, "No se pudo cargar la lista de usuarios"));
     } finally {
       setLoading(false);
     }
@@ -102,6 +103,7 @@ export default function UsersPage() {
           <CircularProgress />
         ) : (
           <>
+            <ErrorAlert message={loadError} sx={{ mb: 2 }} />
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>
                 Nuevo usuario
@@ -109,7 +111,7 @@ export default function UsersPage() {
               <Box component="form" onSubmit={handleCreate} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
                 <TextField label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
-                {error && <Alert severity="error">{error}</Alert>}
+                <ErrorAlert message={error} />
                 <Button type="submit" variant="contained" disabled={saving}>
                   {saving ? "Guardando..." : "Crear usuario"}
                 </Button>

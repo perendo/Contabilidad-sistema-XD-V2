@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
+import ErrorAlert from "@/components/ErrorAlert";
 import {
   isAuthenticated,
   clearSession,
@@ -11,6 +12,7 @@ import {
   errorMessage,
   getActiveCompanyId,
   setActiveCompanyId,
+  ApiError,
 } from "@/lib/api";
 import { NAV_ITEMS, type NavIcon } from "@/lib/nav";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
@@ -34,7 +36,6 @@ import {
   Paper,
   Box,
   TextField,
-  Alert,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -86,6 +87,8 @@ export default function HomePage() {
   });
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [selectedYear, setSelectedYear] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return sessionStorage.getItem("fiscal_year_selected");
@@ -120,55 +123,73 @@ export default function HomePage() {
       const fresh = await api("/company");
       setCompany(fresh);
       applyFiscalYear(String(fresh.fiscal_year));
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return;
+      setActionError(errorMessage(err, "No se pudo activar la sociedad"));
       setCompany(c);
       applyFiscalYear(String(c.fiscal_year));
     }
   }
 
-  useEffect(() => {
+  async function loadDashboard() {
     if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
-    (async () => {
-      try {
-        const u = await api("/auth/me");
-        setUser(u);
-      } catch {
-        await clearSession();
-        router.push("/login");
+    try {
+      const u = await api("/auth/me");
+      setUser(u);
+    } catch (err) {
+      // El 401 ya lo gestiona el lector de errores (borra el marcador y redirige).
+      if (err instanceof ApiError && err.status === 401) {
+        setLoading(false);
         return;
       }
-      try {
-        const list = (await api("/companies")) as Company[];
-        setCompanies(list);
-        const stored = getActiveCompanyId();
-        let toActivate: Company | null = null;
-        if (stored) {
-          toActivate = list.find((c) => String(c.id) === stored) || null;
-        }
-        if (!toActivate && list.length === 1) {
-          toActivate = list[0];
-        }
-        if (toActivate) {
-          await activateCompany(toActivate);
-          setShowCompanyForm(false);
-        } else {
-          setActiveCompanyId(null);
-          setActiveCompanyIdState(null);
-          setCompany(null);
-          setShowCompanyForm(list.length === 0);
-        }
-      } catch {
-        setCompanies([]);
-        setCompany(null);
-        setShowCompanyForm(true);
-      } finally {
-        setLoading(false);
+      setLoadError(errorMessage(err, "No se pudo cargar tu sesión"));
+      setLoading(false);
+      return;
+    }
+    try {
+      const list = (await api("/companies")) as Company[];
+      setCompanies(list);
+      const stored = getActiveCompanyId();
+      let toActivate: Company | null = null;
+      if (stored) {
+        toActivate = list.find((c) => String(c.id) === stored) || null;
       }
-    })();
+      if (!toActivate && list.length === 1) {
+        toActivate = list[0];
+      }
+      if (toActivate) {
+        await activateCompany(toActivate);
+        setShowCompanyForm(false);
+      } else {
+        setActiveCompanyId(null);
+        setActiveCompanyIdState(null);
+        setCompany(null);
+        setShowCompanyForm(list.length === 0);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return;
+      setLoadError(errorMessage(err, "No se pudieron cargar las sociedades"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    // Carga inicial: sincroniza con la API al montar el panel.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  function retryLoad() {
+    setLoading(true);
+    setLoadError("");
+    setActionError("");
+    loadDashboard();
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -295,7 +316,15 @@ export default function HomePage() {
             Usuario: {user.email}
           </Typography>
         )}
-        {loading ? (
+        {actionError && <ErrorAlert message={actionError} sx={{ mb: 2 }} />}
+        {loadError ? (
+          <>
+            <ErrorAlert message={loadError} />
+            <Button variant="contained" sx={{ mt: 2 }} onClick={retryLoad}>
+              Reintentar
+            </Button>
+          </>
+        ) : loading ? (
           <CircularProgress />
         ) : (
           <>
@@ -457,7 +486,7 @@ function CompanyForm({ initial, submitLabel, onSubmit, onCancel }: CompanyFormPr
         required
         fullWidth
       />
-      {error && <Alert severity="error">{error}</Alert>}
+      <ErrorAlert message={error} />
       <Box sx={{ display: "flex", gap: 1 }}>
         <Button type="submit" variant="contained" disabled={loading}>
           {loading ? "Guardando..." : submitLabel}

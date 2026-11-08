@@ -64,12 +64,15 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 52. [x] Como administrador, quiero que los listados de datos estén paginados para evitar el colapso del servidor y del frontend.
 53. [x] Como desarrollador backend, quiero que el código esté organizado en capas separadas (rutas, servicios, repositorios) para facilitar el mantenimiento y la seguridad.
 54. [x] Como administrador, quiero que los importes contables se manejen con precisión decimal para evitar errores en informes fiscales.
-55. [ ] Como desarrollador frontend, quiero que la interfaz tenga componentes reutilizables y manejo de errores adecuado para facilitar el mantenimiento.
+55. [ ] Como desarrollador frontend, quiero que los errores de la API se muestren de forma legible y sin cerrar la sesión por error, para que el usuario pueda corregir y reintentar sin perder el trabajo.
 56. [ ] Como desarrollador frontend, quiero que CORS permita el encabezado X-Company-Id para evitar errores en llamadas entre dominios.
 57. [ ] Como administrador, quiero que el sistema mantenga un registro inalterable de auditoría para cumplir con la Ley Antifraude y Veri*factu. Requiere: #45.
 58. [ ] Como administrador, quiero que el informe de Pérdidas y Ganancias siga la estructura del PGC español para cumplir con la normativa contable.
 59. [ ] Como administrador, quiero que el extracto de cuenta muestre el saldo inicial correcto para tener una visión real de mis finanzas.
 60. [ ] Como administrador, quiero que el Modelo 347 tenga desglose trimestral y excluya facturas con retención de IRPF para cumplir con la AEAT. Requiere: #45.
+61. [ ] Como desarrollador frontend, quiero que todas las páginas compartan una cabecera reutilizable con título, cambio de tema, enlace al panel y salida, para que la navegación sea coherente y no haya que mantener catorce copias.
+62. [ ] Como desarrollador frontend, quiero estados reutilizables de carga, vacío y error junto con la paginación, para que los listados se comporten igual en toda la aplicación.
+63. [ ] Como administrador, quiero que al caducar mi sesión se borre también el marcador `auth_session` cuando la aplicación usa un dominio de cookie configurado (`COOKIE_DOMAIN`), para que no quede una sesión fantasma ni rebotes entre la aplicación y el acceso. Requiere: #55.
 
 ## Automatización de facturas con agente (nuevo epic)
 
@@ -87,6 +90,7 @@ Fuera de alcance: cotejo a 3 vías con órdenes de compra y albaranes; sincroniz
 - Tests: BD de test con `drop_all`/`create_all` por test y seed dedicado (`test@example.com` / `testpass123`). Los importes de apuntes se validan como cadenas de 2 decimales.
 - Stack backend: FastAPI + SQLAlchemy 2.0 + psycopg 3.
 - Stack frontend: Next.js 16 (App Router) + MUI. Panel con `NAV_ITEMS` hacia plan contable, libro diario, importación bancaria, facturas, informes y modelos fiscales; páginas en `/bank-imports`, `/reports/{balance,pyg,export}` y `/taxes/{iva,irpf,347}`. Todas validan sesión y llaman a la API con `credentials: "include"`.
+- Errores de API en el frontend: todas las llamadas de datos pasan por `api()` (JSON) o `fetchApi()` (respuestas binarias/multipart) de `lib/api.ts`, que lanzan `ApiError` con `message` legible, `status` (`0` si no hay conexión) y `detail` crudo del backend. `parseApiError()` extrae el mensaje de `detail` (string, lista de validación unida con `"; "` o `detail.message`), usa un fallback legible (`Error <status>`) y centraliza la sesión caducada: solo un 401 borra el marcador `auth_session` y redirige a `/login` (el propio login pasa `redirectOnUnauthorized: false` para poder mostrar «Credenciales inválidas»); el resto de fallos se muestran sin cerrar sesión. Los avisos usan el componente `ErrorAlert` (no `Alert` suelto) y los tests unitarios de `lib/api` corren con Vitest (`npm test`).
 - CORS: orígenes explícitos desde `CORS_ORIGINS` (por defecto `http://localhost:3000` y `http://127.0.0.1:3000`), `allow_credentials=True`, métodos GET/POST/PUT/DELETE/OPTIONS y cabeceras `Authorization`/`Content-Type`. No se usa `*` con credenciales.
 - Asientos: tienen estado (draft/accepted/annulled); solo los borradores son editables/anulables. Solo se permiten apuntes en subcuentas de detalle (`is_detail == True`); se rechazan cuentas de grupo/balance. `JournalLineOut` serializa `debit`/`credit` como `Decimal` con 2 decimales (string JSON) para evitar pérdida de precisión IEEE 754.
 - Terceros: tabla propia vinculada por account_id (único) a una subcuenta del plan.
