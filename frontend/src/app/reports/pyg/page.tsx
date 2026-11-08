@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
@@ -12,7 +12,6 @@ import {
   Paper,
   Box,
   TextField,
-  CircularProgress,
   Typography,
 } from "@mui/material";
 
@@ -74,9 +73,9 @@ export default function PygPage() {
             <TextField label="Hasta" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
             <Button variant="contained" onClick={load} disabled={loading}>Consultar</Button>
           </Box>
-          <ErrorAlert message={error} sx={{ mt: 2 }} />
+          <ListState loading={loading} items={result ? [result] : []} error={error} onRetry={load} />
         </Paper>
-        {loading ? <CircularProgress /> : result && (
+        {!loading && result && (
           <Paper sx={{ p: 3 }}>
             <Typography><strong>Total ingresos:</strong> {result.total_ingresos.toFixed(2)}</Typography>
             <Typography><strong>Total gastos:</strong> {result.total_gastos.toFixed(2)}</Typography>

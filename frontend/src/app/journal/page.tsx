@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, parseAmount } from "@/lib/format";
@@ -75,6 +75,7 @@ export default function JournalPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [form, setForm] = useState(() => ({
@@ -96,6 +97,7 @@ export default function JournalPage() {
   }, [router]);
 
   async function load(nextPage = page) {
+    setLoading(true);
     try {
       const [accs, ents] = await Promise.all([
         api("/accounts?limit=500"),
@@ -106,6 +108,8 @@ export default function JournalPage() {
       setHasMore(ents.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -132,6 +136,7 @@ export default function JournalPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
       await api("/journal-entries", {
         method: "POST",
@@ -151,6 +156,8 @@ export default function JournalPage() {
       load();
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -266,7 +273,7 @@ export default function JournalPage() {
               </Button>
             </Box>
           </Box>
-          <ErrorAlert message={error} sx={{ mt: 2 }} />
+          <ListState loading={loading} items={entries} error={error} onRetry={load} />
         </Paper>
 
         <Paper>

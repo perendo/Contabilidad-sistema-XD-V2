@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage, fetchApi, ApiError } from "@/lib/api";
 import {
@@ -60,6 +60,7 @@ export default function BankImportsPage() {
   const [accountId, setAccountId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -73,17 +74,25 @@ export default function BankImportsPage() {
       router.push("/login");
       return;
     }
-    api("/accounts?limit=500")
-      .then((data: Account[]) => {
-        setAccounts(
-          data
-            .filter((account) => account.is_detail && account.code.startsWith("57"))
-            .sort((a, b) => a.code.localeCompare(b.code))
-        );
-      })
-      .catch(() => setError("No se pudieron cargar las cuentas bancarias"))
-      .finally(() => setLoadingAccounts(false));
+    loadAccounts();
   }, [router]);
+
+  async function loadAccounts() {
+    setLoading(true);
+    try {
+      const data = (await api("/accounts?limit=500")) as Account[];
+      setAccounts(
+        data
+          .filter((account) => account.is_detail && account.code.startsWith("57"))
+          .sort((a, b) => a.code.localeCompare(b.code))
+      );
+    } catch {
+      setError("No se pudieron cargar las cuentas bancarias");
+    } finally {
+      setLoadingAccounts(false);
+      setLoading(false);
+    }
+  }
 
   async function logout() {
     await clearSession();
@@ -99,6 +108,7 @@ export default function BankImportsPage() {
     setError("");
     setResult(null);
     setImporting(true);
+    setLoading(true);
     try {
       const body = new FormData();
       body.append("file", file);
@@ -130,6 +140,7 @@ export default function BankImportsPage() {
       }
     } finally {
       setImporting(false);
+      setLoading(false);
     }
   }
 
@@ -280,7 +291,7 @@ export default function BankImportsPage() {
             </Box>
           )}
 
-          <ErrorAlert message={error} sx={{ mt: 3 }} />
+          <ListState loading={loading || importing} items={accounts} error={error} onRetry={loadAccounts} />
 
           {result && (
             <Alert

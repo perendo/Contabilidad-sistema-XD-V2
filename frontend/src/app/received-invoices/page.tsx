@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, formatEuro, parseAmount } from "@/lib/format";
@@ -81,6 +81,7 @@ export default function ReceivedInvoicesPage() {
   const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
   const [invoices, setInvoices] = useState<ReceivedInvoice[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -102,6 +103,7 @@ export default function ReceivedInvoicesPage() {
   }, [router]);
 
   async function load(nextPage = page) {
+    setLoading(true);
     try {
       const [parties, accounts, invs] = await Promise.all([
         api("/third-parties?type=Proveedor"),
@@ -116,6 +118,8 @@ export default function ReceivedInvoicesPage() {
       setHasMore(invs.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -136,6 +140,7 @@ export default function ReceivedInvoicesPage() {
       return;
     }
     setSubmitting(true);
+    setLoading(true);
     try {
       await api("/received-invoices", {
         method: "POST",
@@ -155,6 +160,7 @@ export default function ReceivedInvoicesPage() {
       setError(errorMessage(err));
     } finally {
       setSubmitting(false);
+      setLoading(false);
     }
   }
 
@@ -294,7 +300,7 @@ export default function ReceivedInvoicesPage() {
               </Button>
             </Box>
           </Box>
-          <ErrorAlert message={error} sx={{ mt: 2 }} />
+          <ListState loading={loading} items={invoices} error={error} onRetry={load} />
         </Paper>
 
         <Paper>

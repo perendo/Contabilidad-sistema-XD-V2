@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import { formatAmount, formatEuro, parseAmount } from "@/lib/format";
@@ -74,6 +74,7 @@ export default function InvoicesPage() {
   const [clients, setClients] = useState<ThirdParty[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -95,6 +96,7 @@ export default function InvoicesPage() {
   }, [router]);
 
   async function load(nextPage = page) {
+    setLoading(true);
     try {
       const [parties, invs] = await Promise.all([
         api("/third-parties?type=Cliente"),
@@ -105,6 +107,8 @@ export default function InvoicesPage() {
       setHasMore(invs.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -245,7 +249,7 @@ export default function InvoicesPage() {
               </Button>
             </Box>
           </Box>
-          <ErrorAlert message={error} sx={{ mt: 2 }} />
+          <ListState loading={loading} items={invoices} error={error} onRetry={load} />
         </Paper>
 
         <Paper>

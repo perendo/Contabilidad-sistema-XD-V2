@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
@@ -46,6 +46,7 @@ export default function AccountsPage() {
   const [search, setSearch] = useState("");
   const { mode, toggle } = useThemeMode();
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [form, setForm] = useState({
@@ -66,6 +67,7 @@ export default function AccountsPage() {
   }, [router]);
 
   async function load(q?: string, nextPage = page) {
+    setLoading(true);
     try {
       const params = new URLSearchParams();
       if (q) params.set("search", q);
@@ -76,6 +78,8 @@ export default function AccountsPage() {
       setHasMore(data.length === PAGE_SIZE);
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -93,6 +97,7 @@ export default function AccountsPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
       await api("/accounts", {
         method: "POST",
@@ -109,6 +114,8 @@ export default function AccountsPage() {
       load(search);
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -204,7 +211,7 @@ export default function AccountsPage() {
               Crear
             </Button>
           </Box>
-          <ErrorAlert message={error} sx={{ mt: 2 }} />
+          <ListState loading={loading} items={accounts} error={error} onRetry={load} />
         </Paper>
 
         <Paper>

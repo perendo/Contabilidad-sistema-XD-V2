@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
 import {
@@ -17,7 +17,6 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  CircularProgress,
   Typography,
 } from "@mui/material";
 
@@ -105,9 +104,9 @@ export default function Modelo347Page() {
             />
             <Button variant="contained" onClick={load} disabled={loading}>Consultar</Button>
           </Box>
-          <ErrorAlert message={error} sx={{ mt: 2 }} />
+          <ListState loading={loading} items={result ? result.third_parties : []} error={error} onRetry={load} />
         </Paper>
-        {loading ? <CircularProgress /> : result && (
+        {!loading && result && (
           <Paper>
             <Table>
               <TableHead>

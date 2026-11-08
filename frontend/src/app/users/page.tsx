@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
 import PaginationBar from "@/components/PaginationBar";
+import { ListState } from "@/components/ListState";
 import ErrorAlert from "@/components/ErrorAlert";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, api, errorMessage } from "@/lib/api";
@@ -13,11 +14,10 @@ import {
   Paper,
   Box,
   TextField,
-  CircularProgress,
+  Typography,
   List,
   ListItem,
   ListItemText,
-  Typography,
 } from "@mui/material";
 
 type User = { id: number; email: string };
@@ -100,44 +100,40 @@ export default function UsersPage() {
         }}
       />
       <Container sx={{ mt: 4 }}>
-        {loading ? (
-          <CircularProgress />
-        ) : (
-          <>
-            <ErrorAlert message={loadError} sx={{ mb: 2 }} />
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Nuevo usuario
-              </Typography>
-              <Box component="form" onSubmit={handleCreate} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
-                <TextField label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
-                <ErrorAlert message={error} />
-                <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? "Guardando..." : "Crear usuario"}
-                </Button>
-              </Box>
-            </Paper>
-            <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Usuarios
-              </Typography>
-              <List>
-                {users.map((u) => (
-                  <ListItem key={u.id}>
-                    <ListItemText primary={u.email} />
-                  </ListItem>
-                ))}
-              </List>
-            </Paper>
+        <>
+          <ListState loading={loading} items={users} error={loadError} onRetry={load} />
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Nuevo usuario
+            </Typography>
+            <Box component="form" onSubmit={handleCreate} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
+              <TextField label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
+              <ErrorAlert message={error} />
+              <Button type="submit" variant="contained" disabled={saving}>
+                {saving ? "Guardando..." : "Crear usuario"}
+              </Button>
+            </Box>
+          </Paper>
+          <Paper sx={{ p: 3, mt: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Usuarios
+            </Typography>
+            <List>
+              {users.map((u) => (
+                <ListItem key={u.id}>
+                  <ListItemText primary={u.email} />
+                </ListItem>
+              ))}
+            </List>
             <PaginationBar
               page={page}
               hasMore={hasMore}
               onPrevious={() => goToPage(page - 1)}
               onNext={() => goToPage(page + 1)}
             />
-          </>
-        )}
+          </Paper>
+        </>
       </Container>
     </>
   );

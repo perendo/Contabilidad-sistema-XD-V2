@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/components/ThemeProvider";
-import ErrorAlert from "@/components/ErrorAlert";
+import { ListState } from "@/components/ListState";
 import { AppHeader } from "@/components/AppHeader";
 import { isAuthenticated, clearSession, errorMessage, fetchApi } from "@/lib/api";
 import {
@@ -12,7 +12,6 @@ import {
   Paper,
   Box,
   TextField,
-  CircularProgress,
   FormControl,
   InputLabel,
   Select,
@@ -116,8 +115,7 @@ export default function ExportPage() {
               Descargar
             </Button>
           </Box>
-          {loading && <CircularProgress sx={{ mt: 3 }} />}
-          <ErrorAlert message={error} sx={{ mt: 3 }} />
+          <ListState loading={loading} items={[]} error={error} onRetry={download} />
         </Paper>
       </Container>
     </>
