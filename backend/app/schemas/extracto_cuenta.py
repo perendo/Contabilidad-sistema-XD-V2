@@ -26,13 +26,14 @@ class ExtractoCuentaOut(BaseModel):
     account_name: str
     date_from: date | None
     date_to: date | None
+    initial_balance: Decimal | float | None
     movements: list[MovementOut]
     total_debit: Decimal | float | None
     total_credit: Decimal | float | None
     final_balance: Decimal | float | None
     model_config = ConfigDict(from_attributes=True)
 
-    @field_serializer("total_debit", "total_credit", "final_balance")
+    @field_serializer("initial_balance", "total_debit", "total_credit", "final_balance")
     def _serialize_total(self, v: Decimal | float | None) -> str | None:
         if v is None:
             return None

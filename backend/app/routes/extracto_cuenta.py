@@ -47,6 +47,7 @@ def extracto_cuenta(
         account_name=data["account_name"],
         date_from=data["date_from"],
         date_to=data["date_to"],
+        initial_balance=data["initial_balance"],
         movements=[MovementOut(**m) for m in data["movements"]],
         total_debit=data["total_debit"],
         total_credit=data["total_credit"],

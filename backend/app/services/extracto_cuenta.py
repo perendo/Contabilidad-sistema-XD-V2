@@ -20,8 +20,10 @@ class ExtractoCuentaService:
             return None
         lines = self.repo.movements(account_id, company_id, date_from, date_to)
 
+        initial_balance = self.repo.initial_balance(account_id, company_id, date_from)
+
         movements = []
-        running = Decimal("0")
+        running = initial_balance
         total_debit = Decimal("0")
         total_credit = Decimal("0")
         for line in lines:
@@ -49,6 +51,7 @@ class ExtractoCuentaService:
             "account_name": account.name,
             "date_from": date_from,
             "date_to": date_to,
+            "initial_balance": float(initial_balance),
             "movements": movements,
             "total_debit": float(total_debit),
             "total_credit": float(total_credit),

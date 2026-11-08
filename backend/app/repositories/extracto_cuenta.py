@@ -16,6 +16,25 @@ class ExtractoCuentaRepository:
             q = q.filter(Account.company_id == company_id)
         return q.first()
 
+    def initial_balance(self, account_id: int, company_id=None, date_from=None):
+        if date_from is None:
+            return Decimal("0")
+        q = (
+            self.db.query(JournalLine)
+            .join(JournalEntry)
+            .filter(
+                JournalLine.account_id == account_id,
+                JournalEntry.status == "accepted",
+                JournalEntry.date < date_from,
+            )
+        )
+        if company_id is not None:
+            q = q.filter(JournalEntry.company_id == company_id)
+        total = Decimal("0")
+        for line in q.all():
+            total += line.debit - line.credit
+        return total
+
     def movements(self, account_id: int, company_id=None, date_from=None, date_to=None):
         q = (
             self.db.query(JournalLine)
