@@ -528,12 +528,10 @@ def test_modelo_347_includes_quarterly_breakdown(client):
     data = response.json()
 
     by_tax = {item["tax_id"]: item for item in data["third_parties"]}
-    print("DEBUG third_parties:", data["third_parties"])
     assert cliente_alto["tax_id"] in by_tax
     assert proveedor_alto["tax_id"] in by_tax
 
     ca = by_tax[cliente_alto["tax_id"]]
-    print("DEBUG ca:", ca)
     assert ca["total_q1"] == "2420.00"
     assert ca["total_q2"] == "0.00"
     assert ca["total_q3"] == "1210.00"

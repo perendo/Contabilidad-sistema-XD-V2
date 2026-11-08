@@ -303,51 +303,48 @@ export default function ReceivedInvoicesPage() {
           <ListState loading={loading} items={invoices} error={error} onRetry={load} />
         </Paper>
 
-        <Paper>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Nº proveedor</TableCell>
-                <TableCell>Fecha</TableCell>
-                <TableCell>Proveedor</TableCell>
-                <TableCell>Concepto</TableCell>
-                <TableCell align="right">Base</TableCell>
-                <TableCell align="right">IVA</TableCell>
-                <TableCell align="right">Total</TableCell>
-                <TableCell>Asiento</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {invoices.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>{invoice.supplier_number}</TableCell>
-                  <TableCell>{formatDate(invoice.date)}</TableCell>
-                  <TableCell>{supplierName(invoice.third_party_id)}</TableCell>
-                  <TableCell>{invoice.description}</TableCell>
-                  <TableCell align="right">{formatEuro(invoice.base_amount)}</TableCell>
-                  <TableCell align="right">
-                    {invoice.vat_rate}% · {formatEuro(invoice.vat_amount)}
-                  </TableCell>
-                  <TableCell align="right">{formatEuro(invoice.total)}</TableCell>
-                  <TableCell>{invoice.entry_id ? `#${invoice.entry_id}` : "—"}</TableCell>
-                </TableRow>
-              ))}
-              {invoices.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    Sin facturas recibidas
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Paper>
-        <PaginationBar
-          page={page}
-          hasMore={hasMore}
-          onPrevious={() => goToPage(page - 1)}
-          onNext={() => goToPage(page + 1)}
-        />
+        {!loading && invoices.length > 0 && (
+          <>
+            <Paper>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Nº proveedor</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Proveedor</TableCell>
+                    <TableCell>Concepto</TableCell>
+                    <TableCell align="right">Base</TableCell>
+                    <TableCell align="right">IVA</TableCell>
+                    <TableCell align="right">Total</TableCell>
+                    <TableCell>Asiento</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {invoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell>{invoice.supplier_number}</TableCell>
+                      <TableCell>{formatDate(invoice.date)}</TableCell>
+                      <TableCell>{supplierName(invoice.third_party_id)}</TableCell>
+                      <TableCell>{invoice.description}</TableCell>
+                      <TableCell align="right">{formatEuro(invoice.base_amount)}</TableCell>
+                      <TableCell align="right">
+                        {invoice.vat_rate}% · {formatEuro(invoice.vat_amount)}
+                      </TableCell>
+                      <TableCell align="right">{formatEuro(invoice.total)}</TableCell>
+                      <TableCell>{invoice.entry_id ? `#${invoice.entry_id}` : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+            <PaginationBar
+              page={page}
+              hasMore={hasMore}
+              onPrevious={() => goToPage(page - 1)}
+              onNext={() => goToPage(page + 1)}
+            />
+          </>
+        )}
       </Container>
     </>
   );

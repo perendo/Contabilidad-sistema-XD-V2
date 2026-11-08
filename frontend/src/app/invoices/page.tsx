@@ -249,54 +249,50 @@ export default function InvoicesPage() {
               </Button>
             </Box>
           </Box>
-          <ListState loading={loading} items={invoices} error={error} onRetry={load} />
         </Paper>
-
-        <Paper>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Número</TableCell>
-                <TableCell>Fecha</TableCell>
-                <TableCell>Cliente</TableCell>
-                <TableCell>Concepto</TableCell>
-                <TableCell align="right">Base</TableCell>
-                <TableCell align="right">IVA</TableCell>
-                <TableCell align="right">Total</TableCell>
-                <TableCell>Asiento</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {invoices.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>{invoiceNumber(invoice)}</TableCell>
-                  <TableCell>{formatDate(invoice.date)}</TableCell>
-                  <TableCell>{clientName(invoice.third_party_id)}</TableCell>
-                  <TableCell>{invoice.description}</TableCell>
-                  <TableCell align="right">{formatEuro(invoice.base_amount)}</TableCell>
-                  <TableCell align="right">
-                    {invoice.vat_rate}% · {formatEuro(invoice.vat_amount)}
-                  </TableCell>
-                  <TableCell align="right">{formatEuro(invoice.total)}</TableCell>
-                  <TableCell>{invoice.entry_id ? `#${invoice.entry_id}` : "—"}</TableCell>
-                </TableRow>
-              ))}
-              {invoices.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    Sin facturas emitidas
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Paper>
-        <PaginationBar
-          page={page}
-          hasMore={hasMore}
-          onPrevious={() => goToPage(page - 1)}
-          onNext={() => goToPage(page + 1)}
-        />
+        <ListState loading={loading} items={invoices} error={error} onRetry={load} />
+        {!loading && invoices.length > 0 && (
+          <>
+            <Paper>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Número</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Cliente</TableCell>
+                    <TableCell>Concepto</TableCell>
+                    <TableCell align="right">Base</TableCell>
+                    <TableCell align="right">IVA</TableCell>
+                    <TableCell align="right">Total</TableCell>
+                    <TableCell>Asiento</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {invoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell>{invoiceNumber(invoice)}</TableCell>
+                      <TableCell>{formatDate(invoice.date)}</TableCell>
+                      <TableCell>{clientName(invoice.third_party_id)}</TableCell>
+                      <TableCell>{invoice.description}</TableCell>
+                      <TableCell align="right">{formatEuro(invoice.base_amount)}</TableCell>
+                      <TableCell align="right">
+                        {invoice.vat_rate}% · {formatEuro(invoice.vat_amount)}
+                      </TableCell>
+                      <TableCell align="right">{formatEuro(invoice.total)}</TableCell>
+                      <TableCell>{invoice.entry_id ? `#${invoice.entry_id}` : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+            <PaginationBar
+              page={page}
+              hasMore={hasMore}
+              onPrevious={() => goToPage(page - 1)}
+              onNext={() => goToPage(page + 1)}
+            />
+          </>
+        )}
       </Container>
     </>
   );

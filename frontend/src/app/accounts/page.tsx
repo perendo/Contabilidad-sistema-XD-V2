@@ -214,43 +214,40 @@ export default function AccountsPage() {
           <ListState loading={loading} items={accounts} error={error} onRetry={load} />
         </Paper>
 
-        <Paper>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Código</TableCell>
-                <TableCell>Nombre</TableCell>
-                <TableCell>Tipo</TableCell>
-                <TableCell>Nivel</TableCell>
-                <TableCell>Registro</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {accounts.map((a) => (
-                <TableRow key={a.id}>
-                  <TableCell sx={{ fontFamily: "monospace" }}>{a.code}</TableCell>
-                  <TableCell>{a.name}</TableCell>
-                  <TableCell>{a.type}</TableCell>
-                  <TableCell>{a.level}</TableCell>
-                  <TableCell>{a.is_detail ? "Sí" : "No"}</TableCell>
-                </TableRow>
-              ))}
-              {accounts.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    Sin cuentas
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Paper>
-        <PaginationBar
-          page={page}
-          hasMore={hasMore}
-          onPrevious={() => goToPage(page - 1)}
-          onNext={() => goToPage(page + 1)}
-        />
+        {!loading && accounts.length > 0 && (
+          <>
+            <Paper>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Código</TableCell>
+                    <TableCell>Nombre</TableCell>
+                    <TableCell>Tipo</TableCell>
+                    <TableCell>Nivel</TableCell>
+                    <TableCell>Registro</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {accounts.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell sx={{ fontFamily: "monospace" }}>{a.code}</TableCell>
+                      <TableCell>{a.name}</TableCell>
+                      <TableCell>{a.type}</TableCell>
+                      <TableCell>{a.level}</TableCell>
+                      <TableCell>{a.is_detail ? "Sí" : "No"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+            <PaginationBar
+              page={page}
+              hasMore={hasMore}
+              onPrevious={() => goToPage(page - 1)}
+              onNext={() => goToPage(page + 1)}
+            />
+          </>
+        )}
       </Container>
     </>
   );

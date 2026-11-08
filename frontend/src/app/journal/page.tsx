@@ -276,57 +276,54 @@ export default function JournalPage() {
           <ListState loading={loading} items={entries} error={error} onRetry={load} />
         </Paper>
 
-        <Paper>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Fecha</TableCell>
-                <TableCell>Concepto</TableCell>
-                <TableCell>Autor</TableCell>
-                <TableCell>Líneas</TableCell>
-                <TableCell>Estado</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {entries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell>{entry.id}</TableCell>
-                  <TableCell>{entry.date}</TableCell>
-                  <TableCell>{entry.description}</TableCell>
-                  <TableCell>{entry.author || "Sin autor"}</TableCell>
-                  <TableCell>
-                    {entry.lines.map((line) => (
-                      <div key={line.id}>
-                        {line.account_id} · D {formatAmount(line.debit)} / H {formatAmount(line.credit)}
-                      </div>
-                    ))}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={STATUS_LABEL[entry.status] || entry.status}
-                      color={entry.status === "accepted" ? "success" : entry.status === "annulled" ? "default" : "warning"}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {entries.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    Sin asientos
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Paper>
-        <PaginationBar
-          page={page}
-          hasMore={hasMore}
-          onPrevious={() => goToPage(page - 1)}
-          onNext={() => goToPage(page + 1)}
-        />
+        {!loading && entries.length > 0 && (
+          <>
+            <Paper>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Concepto</TableCell>
+                    <TableCell>Autor</TableCell>
+                    <TableCell>Líneas</TableCell>
+                    <TableCell>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {entries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{entry.id}</TableCell>
+                      <TableCell>{entry.date}</TableCell>
+                      <TableCell>{entry.description}</TableCell>
+                      <TableCell>{entry.author || "Sin autor"}</TableCell>
+                      <TableCell>
+                        {entry.lines.map((line) => (
+                          <div key={line.id}>
+                            {line.account_id} · D {formatAmount(line.debit)} / H {formatAmount(line.credit)}
+                          </div>
+                        ))}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={STATUS_LABEL[entry.status] || entry.status}
+                          color={entry.status === "accepted" ? "success" : entry.status === "annulled" ? "default" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+            <PaginationBar
+              page={page}
+              hasMore={hasMore}
+              onPrevious={() => goToPage(page - 1)}
+              onNext={() => goToPage(page + 1)}
+            />
+          </>
+        )}
       </Container>
     </>
   );
