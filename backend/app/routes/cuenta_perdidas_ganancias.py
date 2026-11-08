@@ -46,4 +46,8 @@ def cuenta_perdidas_ganancias(
         total_gastos=data["total_gastos"],
         resultado=data["resultado"],
         tipo_resultado=data["tipo_resultado"],
+        grupos=data["grupos"],
+        resultado_explotacion=data["resultado_explotacion"],
+        resultado_financiero=data["resultado_financiero"],
+        resultado_ejercicio=data["resultado_ejercicio"],
     )

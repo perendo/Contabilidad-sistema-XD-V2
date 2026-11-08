@@ -329,3 +329,143 @@ def test_extracto_cuenta_out_serializes_two_decimals(client):
     assert data["total_debit"] == "1210.50"
     assert data["total_credit"] == "0.00"
     assert data["final_balance"] == "1210.50"
+
+
+def test_pyg_returns_groups_by_first_digit(client):
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    accounts = {}
+    codes = [
+        ("572", "Bancos", "Activo"),
+        ("700", "Ventas", "Ingreso"),
+        ("600", "Compras", "Gasto"),
+        ("4770", "IVA repercutido", "Pasivo"),
+    ]
+    for code, name, account_type in codes:
+        accounts[code] = client.post(
+            "/accounts",
+            json={"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True, "is_detail": True},
+            headers=headers,
+        ).json()
+
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-10",
+            "description": "Venta de mercaderías",
+            "lines": [
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 1210, "credit": 0},
+                {"account_id": accounts["700"]["id"], "description": "Venta", "debit": 0, "credit": 1000},
+                {"account_id": accounts["4770"]["id"], "description": "IVA", "debit": 0, "credit": 210},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-15",
+            "description": "Compra de mercaderías",
+            "lines": [
+                {"account_id": accounts["600"]["id"], "description": "Compra", "debit": 500, "credit": 0},
+                {"account_id": accounts["4770"]["id"], "description": "IVA soportado", "debit": 210, "credit": 0},
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 0, "credit": 710},
+            ],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/cuenta-perdidas-ganancias",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "grupos" in data
+    grupos = {g["codigo_grupo"]: g for g in data["grupos"]}
+    assert "7" in grupos
+    assert "6" in grupos
+    assert grupos["7"]["importe"] == "1000.00"
+    assert grupos["6"]["importe"] == "-500.00"
+
+
+def test_pyg_includes_subtotales_pgc(client):
+    from decimal import Decimal
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    accounts = {}
+    codes = [
+        ("572", "Bancos", "Activo"),
+        ("700", "Ventas", "Ingreso"),
+        ("600", "Compras", "Gasto"),
+        ("4770", "IVA repercutido", "Pasivo"),
+        ("520", "Intereses pagados", "Gasto"),
+    ]
+    for code, name, account_type in codes:
+        accounts[code] = client.post(
+            "/accounts",
+            json={"code": code, "name": name, "type": account_type, "level": 1, "is_detail": True, "is_detail": True},
+            headers=headers,
+        ).json()
+
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-10",
+            "description": "Venta de mercaderías",
+            "lines": [
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 1210, "credit": 0},
+                {"account_id": accounts["700"]["id"], "description": "Venta", "debit": 0, "credit": 1000},
+                {"account_id": accounts["4770"]["id"], "description": "IVA", "debit": 0, "credit": 210},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-15",
+            "description": "Compra de mercaderías",
+            "lines": [
+                {"account_id": accounts["600"]["id"], "description": "Compra", "debit": 500, "credit": 0},
+                {"account_id": accounts["4770"]["id"], "description": "IVA soportado", "debit": 210, "credit": 0},
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 0, "credit": 710},
+            ],
+        },
+        headers=headers,
+    )
+    client.post(
+        "/journal-entries",
+        json={
+            "date": "2026-03-20",
+            "description": "Intereses bancarios",
+            "lines": [
+                {"account_id": accounts["520"]["id"], "description": "Gasto financiero", "debit": 200, "credit": 0},
+                {"account_id": accounts["572"]["id"], "description": "Banco", "debit": 0, "credit": 200},
+            ],
+        },
+        headers=headers,
+    )
+
+    response = client.get(
+        "/cuenta-perdidas-ganancias",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "resultado_explotacion" in data
+    assert "resultado_financiero" in data
+    assert "resultado_ejercicio" in data
+
+    # resultado_explotacion = grupo 7 (1000) - grupo 6 (500) = 500
+    assert Decimal(data["resultado_explotacion"]) == Decimal("500.00")
+    # resultado_financiero = grupo 5 (-200 gasto)
+    assert Decimal(data["resultado_financiero"]) == Decimal("-200.00")
+    # resultado_ejercicio = 500 + (-200) = 300
+    assert Decimal(data["resultado_ejercicio"]) == Decimal("300.00")
+

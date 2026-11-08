@@ -67,7 +67,7 @@ Decisiones costosas: single-tenant, rol único (email/contraseña), solo online,
 55. [x] Como desarrollador frontend, quiero que los errores de la API se muestren de forma legible y sin cerrar la sesión por error, para que el usuario pueda corregir y reintentar sin perder el trabajo.
 56. [x] Como desarrollador frontend, quiero que CORS permita el encabezado X-Company-Id para evitar errores en llamadas entre dominios.
 57. [x] Como administrador, quiero que el sistema mantenga un registro inalterable de auditoría para cumplir con la Ley Antifraude y Veri*factu. Requiere: #45.
-58. [ ] Como administrador, quiero que el informe de Pérdidas y Ganancias siga la estructura del PGC español para cumplir con la normativa contable.
+58. [x] Como administrador, quiero que el informe de Pérdidas y Ganancias siga la estructura del PGC español para cumplir con la normativa contable.
 59. [ ] Como administrador, quiero que el extracto de cuenta muestre el saldo inicial correcto para tener una visión real de mis finanzas.
 60. [ ] Como administrador, quiero que el Modelo 347 tenga desglose trimestral y excluya facturas con retención de IRPF para cumplir con la AEAT. Requiere: #45.
 61. [ ] Como desarrollador frontend, quiero que todas las páginas compartan una cabecera reutilizable con título, cambio de tema, enlace al panel y salida, para que la navegación sea coherente y no haya que mantener catorce copias.
