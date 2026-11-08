@@ -240,4 +240,98 @@ describe("api", () => {
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
   });
+
+  it("clearSession_clearsMarkerWithDomainWhenCOOKIE_DOMAIN_configured", async () => {
+    const cookieParts: string[] = [];
+    vi.stubGlobal("document", {
+      set cookie(value: string) {
+        cookieParts.push(value);
+      },
+      get cookie() {
+        return cookieParts.join("; ");
+      },
+    });
+    vi.resetModules();
+    process.env.COOKIE_DOMAIN = "ejemplo.com";
+
+    const { clearSession } = await import("./api");
+    await clearSession();
+
+    expect(cookieParts.some((c) => c.includes("Domain=ejemplo.com"))).toBe(true);
+  });
+
+  it("clearSession_clearsMarkerWithoutDomainWhenCOOKIE_DOMAIN_notConfigured", async () => {
+    const cookieParts: string[] = [];
+    vi.stubGlobal("document", {
+      set cookie(value: string) {
+        cookieParts.push(value);
+      },
+      get cookie() {
+        return cookieParts.join("; ");
+      },
+    });
+    vi.resetModules();
+    delete process.env.COOKIE_DOMAIN;
+
+    const { clearSession } = await import("./api");
+    await clearSession();
+
+    expect(cookieParts.some((c) => c.includes("Domain="))).toBe(false);
+    expect(cookieParts.some((c) => c.includes("auth_session="))).toBe(true);
+  });
+
+  it("parseApiError_clearsMarkerWithDomainOn401WhenCOOKIE_DOMAIN_configured", async () => {
+    const cookieParts: string[] = [];
+    vi.stubGlobal("document", {
+      set cookie(value: string) {
+        cookieParts.push(value);
+      },
+      get cookie() {
+        return cookieParts.join("; ");
+      },
+    });
+    vi.stubGlobal("window", { location: { assign: vi.fn() } });
+    vi.resetModules();
+    process.env.COOKIE_DOMAIN = "ejemplo.com";
+
+    const { api } = await import("./api");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Sesión caducada" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    await api("/accounts").catch(() => undefined);
+
+    expect(cookieParts.some((c) => c.includes("Domain=ejemplo.com"))).toBe(true);
+  });
+
+  it("parseApiError_clearsMarkerWithoutDomainOn401WhenCOOKIE_DOMAIN_notConfigured", async () => {
+    const cookieParts: string[] = [];
+    vi.stubGlobal("document", {
+      set cookie(value: string) {
+        cookieParts.push(value);
+      },
+      get cookie() {
+        return cookieParts.join("; ");
+      },
+    });
+    vi.stubGlobal("window", { location: { assign: vi.fn() } });
+    vi.resetModules();
+    delete process.env.COOKIE_DOMAIN;
+
+    const { api } = await import("./api");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Sesión caducada" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    await api("/accounts").catch(() => undefined);
+
+    expect(cookieParts.some((c) => c.includes("Domain="))).toBe(false);
+    expect(cookieParts.some((c) => c.includes("auth_session="))).toBe(true);
+  });
 });

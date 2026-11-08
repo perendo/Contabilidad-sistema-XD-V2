@@ -37,7 +37,9 @@ export async function clearSession(): Promise<void> {
     // Si falla la red, al menos se elimina el marcador local.
   } finally {
     if (typeof document !== "undefined") {
-      document.cookie = `${AUTH_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+      const cookieDomain = process.env.COOKIE_DOMAIN;
+      const domainPart = cookieDomain ? ` Domain=${cookieDomain}` : "";
+      document.cookie = `${AUTH_COOKIE}=; Max-Age=0; path=/; SameSite=Lax${domainPart}`;
     }
   }
 }
@@ -117,7 +119,8 @@ async function parseApiError(
     redirectOnUnauthorized &&
     typeof window !== "undefined"
   ) {
-    document.cookie = `${AUTH_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+    const cookieDomain = process.env.COOKIE_DOMAIN;
+    document.cookie = `${AUTH_COOKIE}=; Max-Age=0; path=/; SameSite=Lax${cookieDomain ? ` Domain=${cookieDomain}` : ""}`;
     // El lector vive fuera de React y no puede usar el router de Next.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/login");
