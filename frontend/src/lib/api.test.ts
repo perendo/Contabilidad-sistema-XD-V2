@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "./api";
+import { api, fetchApi } from "./api";
 
 describe("api", () => {
   afterEach(() => {
@@ -215,5 +215,29 @@ describe("api", () => {
       "Content-Type": "application/json",
       "X-Company-Id": "7",
     });
+  });
+
+  it("fetchApi_sends_company_id_header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("sessionStorage", { getItem: () => "7" });
+
+    await fetchApi("/bank-imports");
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.headers).toMatchObject({ "X-Company-Id": "7" });
+  });
+
+  it("fetchApi_sends_content_type_for_json_body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("sessionStorage", { getItem: () => null });
+
+    await fetchApi("/bank-imports", { method: "POST", body: JSON.stringify({}) });
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
   });
 });

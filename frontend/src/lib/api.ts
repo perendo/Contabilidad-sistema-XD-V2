@@ -131,10 +131,19 @@ export async function fetchApi(
   options: ApiOptions = {}
 ): Promise<Response> {
   const { redirectOnUnauthorized = true } = options;
+  const activeCompanyId = getActiveCompanyId();
+  const headers: Record<string, string> = {};
+  if (activeCompanyId) {
+    headers["X-Company-Id"] = activeCompanyId;
+  }
+  if (init.body && typeof init.body === "string") {
+    headers["Content-Type"] = "application/json";
+  }
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...init,
+      headers: { ...headers, ...(init.headers as Record<string, string>) },
       credentials: "include",
     });
   } catch {
